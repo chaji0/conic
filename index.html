@@ -1,0 +1,3772 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>단붕이의 대치동 이차곡선 탐험</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --panel-bg: rgba(20,24,34,0.72);
+    --accent: #ffd166;
+    --accent2: #6fd3ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0b1220;
+    font-family: "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
+  #app { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; }
+
+  .panel {
+    position:absolute; background:var(--panel-bg); backdrop-filter: blur(6px);
+    border:1px solid rgba(255,255,255,0.12); border-radius:14px; color:#fff;
+    box-shadow:0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  #hud-score {
+    top:16px; left:16px; padding:14px 18px; min-width:230px;
+  }
+  #hud-score .title { font-size:13px; opacity:0.75; margin-bottom:2px;}
+  #hud-score .score { font-size:30px; font-weight:800; color:var(--accent); letter-spacing:0.5px;}
+  #hud-score .progress { font-size:13px; margin-top:6px; opacity:0.9; }
+  #hud-score .bar-bg { margin-top:6px; height:8px; border-radius:6px; background:rgba(255,255,255,0.15); overflow:hidden;}
+  #hud-score .bar-fg { height:100%; width:0%; background:linear-gradient(90deg,var(--accent2),var(--accent)); transition:width .35s ease;}
+  #leave-btn { margin-top:10px; width:100%; padding:8px; border-radius:9px; border:1px solid rgba(255,255,255,0.25);
+    background:rgba(255,255,255,0.08); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+  #leave-btn:hover { background:rgba(255,255,255,0.16); }
+  #goodbye-overlay { position:fixed; inset:0; background:rgba(10,12,18,0.92); z-index:60; display:none;
+    align-items:center; justify-content:center; text-align:center; color:#fff; }
+  #goodbye-overlay.show { display:flex; }
+  #goodbye-card h2 { font-size:26px; margin-bottom:10px; }
+  #goodbye-card p { font-size:14px; opacity:0.85; }
+
+  #hud-list {
+    top:56px; right:16px; width:250px; max-height:50vh; overflow-y:auto; padding:12px 14px;
+  }
+  #hud-list.collapsed { max-height:none; overflow:visible; padding:10px 14px; }
+  #hud-list.collapsed #list-body { display:none; }
+  #hud-list h3 { margin:0; font-size:14px; opacity:0.9; cursor:pointer; user-select:none;
+    -webkit-user-select:none; display:flex; align-items:center; gap:6px; }
+  #hud-list h3 .caret { margin-left:auto; font-size:12px; opacity:0.8; }
+  #hud-list h3 .cnt { font-size:11px; padding:1px 7px; border-radius:9px; background:rgba(255,255,255,0.14); }
+  #hud-list #list-body { margin-top:8px; }
+  #hud-list .item { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:5px 0;
+    border-bottom:1px dashed rgba(255,255,255,0.08); opacity:0.55; }
+  #hud-list .item.found { opacity:1; }
+  #hud-list .dot { width:10px; height:10px; border-radius:50%; flex:0 0 auto; background:#555; }
+  #hud-list .item.found .dot { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+  #hud-list .tag { font-size:10px; padding:1px 6px; border-radius:8px; background:rgba(255,255,255,0.12); }
+
+  #zoom-ctrl {
+    bottom:16px; left:50%; transform:translateX(-50%); padding:8px 12px; display:flex; align-items:center; gap:10px; font-size:12px;
+    z-index:15;
+  }
+  /* 아이패드에서 손가락으로 누르기 쉽도록 슬라이더를 두껍게 하고 +/- 버튼을 크게 만듦 */
+  #zoom-ctrl input[type=range]{ width:150px; height:26px; accent-color: var(--accent); }
+  #zoom-ctrl .zoom-btn {
+    width:42px; height:42px; border-radius:12px; border:1px solid rgba(255,255,255,0.28);
+    background:rgba(255,255,255,0.12); color:#fff; font-size:22px; font-weight:800; line-height:1;
+    cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:manipulation;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  #zoom-ctrl .zoom-btn:active { background:rgba(255,209,102,0.55); color:#241a00; }
+
+  #minimap-wrap {
+    position:absolute; right:16px; bottom:16px; width:190px; height:190px; border-radius:50%;
+    overflow:hidden; border:3px solid rgba(255,255,255,0.35); box-shadow:0 8px 24px rgba(0,0,0,0.5);
+    background:#173322; cursor:pointer; display:none;
+  }
+  #minimap-wrap canvas { width:100%; height:100%; display:block; }
+  #minimap-label { position:absolute; right:16px; bottom:210px; color:#fff; font-size:11px; opacity:0.75;
+    text-align:right; width:190px; display:none; }
+  /* 미니맵 접힘 상태: 작은 아이콘 버튼만 */
+  #minimap-btn {
+    position:absolute; right:16px; bottom:16px; width:54px; height:54px; border-radius:50%;
+    background:var(--panel-bg); backdrop-filter:blur(6px); border:2px solid rgba(255,255,255,0.35);
+    box-shadow:0 6px 18px rgba(0,0,0,0.45); color:#fff; font-size:24px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none;
+  }
+  body.mm-open #minimap-btn { display:none; }
+  body.mm-open #minimap-wrap, body.mm-open #minimap-label { display:block; }
+
+  /* 실시간 접속 상태 표시 */
+  #mp-status {
+    position:absolute; top:16px; left:50%; transform:translateX(-50%); padding:7px 14px; border-radius:20px;
+    background:var(--panel-bg); backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,0.15);
+    color:#fff; font-size:12.5px; font-weight:700; display:none; align-items:center; gap:7px; z-index:14;
+    box-shadow:0 6px 18px rgba(0,0,0,0.35); white-space:nowrap;
+  }
+  #mp-status.show { display:flex; }
+  #mp-status .led { width:9px; height:9px; border-radius:50%; background:#f2c14e; box-shadow:0 0 8px #f2c14e; }
+  #mp-status.live .led { background:#49d67a; box-shadow:0 0 8px #49d67a; }
+  #mp-status.off .led { background:#8a8f98; box-shadow:none; }
+
+  /* 낮/밤 표시 배지 */
+  #time-badge {
+    position:absolute; top:16px; right:16px; padding:7px 13px; border-radius:20px; font-size:12.5px; font-weight:800;
+    color:#fff; z-index:13; box-shadow:0 6px 18px rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.18);
+    white-space:nowrap; transition: background .6s linear;
+  }
+  #time-badge.day { background:rgba(64,124,196,0.82); }
+  #time-badge.dusk { background:rgba(190,96,48,0.85); }
+  #time-badge.night { background:rgba(22,26,52,0.88); }
+
+  /* 자전거 전조등 패널 */
+  #bike-panel { display:none; left:16px; bottom:16px; width:250px; padding:12px 14px; }
+  #bike-panel.show { display:block; }
+  #bike-panel .bp-title { font-size:13px; font-weight:800; margin-bottom:8px; color:var(--accent); }
+  #bike-panel .bp-row { display:flex; align-items:center; gap:8px; font-size:12px; }
+  #bike-panel .bp-row input[type=range] { flex:1; accent-color:var(--accent2); }
+  #bike-panel .bp-bar { margin-top:8px; height:9px; border-radius:6px; background:rgba(255,255,255,0.15); overflow:hidden; }
+  #bike-panel .bp-bar-fg { height:100%; width:0%; background:linear-gradient(90deg,#6a5a2a,#ffe9a8); transition:width .1s linear; }
+  #bike-panel .bp-row2 { margin-top:7px; font-size:12.5px; }
+  #bike-panel .bp-row2 b { color:var(--accent); }
+  #bike-panel .bp-hint { margin-top:6px; font-size:11px; opacity:0.7; line-height:1.5; }
+  #bike-off-btn {
+    display:none; position:absolute; left:16px; bottom:16px; padding:9px 14px; border-radius:11px;
+    border:1px solid rgba(255,255,255,0.25); background:rgba(20,24,34,0.78); color:#fff;
+    font-size:12.5px; font-weight:700; cursor:pointer; z-index:14;
+  }
+  #bike-off-btn.show { display:block; }
+  #bike-panel.show ~ #bike-off-btn.show { bottom:186px; }
+
+  /* 터치 이동용 가상 조이스틱 */
+  #joystick { position:fixed; width:124px; height:124px; margin-left:-62px; margin-top:-62px;
+    border-radius:50%; border:2px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.10);
+    display:none; z-index:25; pointer-events:none; }
+  #joystick.show { display:block; }
+  #joystick-knob { position:absolute; left:50%; top:50%; width:48px; height:48px; border-radius:50%;
+    background:rgba(255,209,102,0.8); border:2px solid rgba(255,255,255,0.65); transform:translate(-50%,-50%); }
+
+  /* touch dpad */
+  #dpad { position:absolute; left:16px; bottom:110px; display:none; }
+  #dpad.show { display:block; }
+  .dpad-row { display:flex; justify-content:center; }
+  .dpad-btn {
+    width:52px; height:52px; margin:4px; border-radius:14px; background:rgba(255,255,255,0.14);
+    border:1px solid rgba(255,255,255,0.3); color:#fff; font-size:22px; display:flex; align-items:center;
+    justify-content:center; user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  .dpad-btn:active { background:rgba(255,209,102,0.5); }
+
+  #popup-overlay {
+    position:absolute; inset:0; display:none; align-items:center; justify-content:flex-start; z-index:30;
+    background:rgba(6,10,18,0.1); padding-left:min(3vw,32px); pointer-events:none;
+    transition: background .2s ease;
+  }
+  #popup-overlay.show { display:flex; }
+  #popup-overlay #popup-card{ pointer-events:auto; }
+  #popup-card {
+    width:min(380px, 86vw); max-height:88vh; overflow-y:auto; background:linear-gradient(160deg,#1c2438,#141a29); border:1px solid rgba(255,255,255,0.15);
+    border-radius:18px; padding:24px 26px; color:#fff; box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  #popup-card .kind { display:inline-block; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700;
+    background:var(--accent); color:#241a00; margin-bottom:10px; }
+  #popup-card h2 { margin:4px 0 10px 0; font-size:21px; }
+  #popup-card .eq { font-size:18px; font-weight:700; color:var(--accent2); background:rgba(111,211,255,0.08);
+    padding:10px 14px; border-radius:10px; margin:10px 0; text-align:center; letter-spacing:0.3px;}
+  #popup-card .eq .frac { display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
+    vertical-align:middle; margin:0 4px; line-height:1.15; }
+  #popup-card .eq .frac .fn { padding:0 3px 2px 3px; border-bottom:1.5px solid currentColor; }
+  #popup-card .eq .frac .fd { padding:2px 3px 0 3px; }
+  #popup-card p { font-size:14px; line-height:1.62; opacity:0.92; margin:8px 0;}
+  #popup-card .pts { font-size:15px; color:var(--accent); font-weight:700; margin-top:10px;}
+  #popup-card button.main-btn { margin-top:16px; width:100%; padding:12px; border:none; border-radius:12px; font-size:15px;
+    font-weight:700; background:var(--accent); color:#241a00; cursor:pointer; }
+
+  #pop-graph-wrap{ display:none; margin:12px 0; background:rgba(255,255,255,0.05); border-radius:12px; padding:10px; text-align:center; }
+  #pop-graph-wrap.show{ display:block; }
+  #pop-graph-wrap canvas{ background:#0d1420; border-radius:8px; max-width:100%; }
+  #pop-slider-row{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; }
+  #pop-slider-row input[type=range]{ flex:1; accent-color:var(--accent2); }
+  #pop-slider-hint{ font-size:11.5px; opacity:0.7; margin-top:4px; }
+  #solar-readout{ display:none; margin-top:8px; padding:7px 10px; border-radius:9px; font-size:13px; font-weight:800;
+    background:linear-gradient(90deg, rgba(255,180,80,0.22), rgba(255,220,120,0.12)); color:#ffd79a; text-align:center; }
+  #solar-readout.show{ display:block; }
+
+  #pop-sky-wrap{ display:none; margin:12px 0; background:rgba(255,255,255,0.05); border-radius:12px; padding:10px; text-align:center; }
+  #pop-sky-wrap.show{ display:block; }
+  #pop-sky-canvas{ width:100%; max-width:330px; border-radius:9px; background:#04060f; transition: filter .12s linear; }
+  #pop-sky-status{ margin-top:8px; font-size:13px; font-weight:800; color:#ffd166; }
+  #pop-sky-status.sharp{ color:#7bf0a5; }
+  #pop-sky-row{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; }
+  #pop-sky-row input[type=range]{ flex:1; accent-color:var(--accent2); }
+  #pop-sky-hint{ font-size:11.5px; opacity:0.7; margin-top:5px; text-align:left; }
+
+  #pop-mic-wrap{ display:none; margin:12px 0; background:rgba(255,209,102,0.1); border-radius:12px; padding:12px; }
+  #pop-mic-wrap.show{ display:block; }
+  #pop-mic-wrap .row{ display:flex; align-items:center; gap:8px; font-size:12.5px; margin-top:6px; }
+  #pop-mic-wrap input[type=range]{ flex:1; accent-color:var(--accent); }
+  #volume-meter{ height:9px; border-radius:6px; background:rgba(255,255,255,0.15); overflow:hidden; margin-top:8px; }
+  #volume-meter-fg{ height:100%; width:0%; background:linear-gradient(90deg,#6fd3ff,#ffd166); transition:width .08s linear; }
+  #mic-note{ font-size:11.5px; opacity:0.75; margin-top:6px; }
+
+  #start-overlay {
+    position:absolute; inset:0; background:radial-gradient(ellipse at center, #3f79c9 0%, #0b1220 100%);
+    display:flex; align-items:center; justify-content:center; z-index:40; text-align:center; color:#fff; padding:20px;
+  }
+  #start-card { max-width:640px; }
+  #start-card h1 { font-size:clamp(22px,4vw,34px); margin-bottom:6px; }
+  #start-card .sub { color:var(--accent2); font-size:14px; margin-bottom:18px;}
+  #start-card p { font-size:14px; line-height:1.7; opacity:0.9; text-align:left; background:rgba(255,255,255,0.06);
+    padding:16px 20px; border-radius:14px; }
+  #start-card .keys { display:flex; gap:10px; justify-content:center; margin:18px 0; flex-wrap:wrap; }
+  #start-card .key { background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.25); border-radius:8px;
+    padding:8px 14px; font-size:12.5px; }
+  #start-btn { margin-top:6px; padding:14px 34px; font-size:16px; font-weight:800; border:none; border-radius:14px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent)); color:#151515; cursor:pointer; box-shadow:0 8px 20px rgba(255,209,102,0.25);}
+  #name-input-row { display:flex; align-items:center; justify-content:center; gap:10px; margin:16px 0 4px; }
+  #name-input-row label { font-size:13px; opacity:0.85; }
+  #player-name-input { font-size:15px; padding:9px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.3);
+    background:rgba(255,255,255,0.1); color:#fff; width:180px; text-align:center; }
+  #player-name-input::placeholder { color:rgba(255,255,255,0.5); }
+
+  #complete-banner {
+    position:absolute; top:90px; left:50%; transform:translateX(-50%) translateY(-16px); opacity:0;
+    background:linear-gradient(90deg,#ffd166,#6fd3ff); color:#1b1b1b; padding:14px 26px; border-radius:16px;
+    font-weight:800; font-size:15px; box-shadow:0 10px 30px rgba(0,0,0,0.4); transition:all .5s ease; pointer-events:none; z-index:25;
+    text-align:center;
+  }
+  #complete-banner.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  #entry-prompt-overlay { position:absolute; inset:0; background:rgba(6,10,18,0.6); display:none; align-items:center; justify-content:center; z-index:35; }
+  #entry-prompt-overlay.show{ display:flex; }
+  #entry-prompt-card{ width:min(360px,86vw); background:linear-gradient(160deg,#1c2438,#141a29); border:1px solid rgba(255,255,255,0.15);
+    border-radius:18px; padding:26px 24px; color:#fff; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+  #entry-prompt-card h3{ margin:0 0 16px 0; font-size:16.5px; line-height:1.5; }
+  #entry-prompt-card .btnrow{ display:flex; gap:10px; margin-top:6px; }
+  #entry-prompt-card button{ flex:1; padding:11px; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+  #entry-yes{ background:var(--accent); color:#241a00; }
+  #entry-no{ background:rgba(255,255,255,0.15); color:#fff; }
+
+  #exit-interior-btn{ position:absolute; top:16px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:12px;
+    background:rgba(20,24,34,0.88); color:#fff; font-size:13px; font-weight:700; cursor:pointer; display:none; z-index:20;
+    border:1px solid rgba(255,255,255,0.25); }
+  #exit-interior-btn.show{ display:block; }
+
+  #focus-action-btn{ position:absolute; bottom:130px; left:50%; transform:translateX(-50%); padding:13px 22px; border-radius:14px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent)); color:#151515; font-size:14px; font-weight:800; cursor:pointer;
+    display:none; z-index:22; border:none; box-shadow:0 8px 20px rgba(0,0,0,0.35); }
+  #focus-action-btn.show{ display:block; }
+  #record-progress{ position:absolute; bottom:186px; left:50%; transform:translateX(-50%); padding:8px 18px; border-radius:12px;
+    background:rgba(200,40,40,0.9); color:#fff; font-size:13px; font-weight:700; display:none; z-index:22; }
+  #record-progress.show{ display:block; }
+
+  #crosshair {
+    position:absolute; top:50%; left:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%;
+    background:rgba(255,255,255,0.55); box-shadow:0 0 0 2px rgba(0,0,0,0.25); pointer-events:none;
+  }
+
+  #loading {
+    position:absolute; inset:0; background:#08101c; color:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:14px; z-index:50; letter-spacing:0.5px; opacity:0.85;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="loading">3D 대치동 · 도곡동을 준비하는 중...</div>
+
+  <div id="start-overlay">
+    <div id="start-card">
+      <h1>🐟 단붕이의 대치동 이차곡선 탐험</h1>
+      <div class="sub">2022 개정교육과정 · 기하 - 이차곡선을 생활 속에서 찾아보자!</div>
+      <p>
+        단대부고 근처 <b>대치아이파크</b>에 사는 학생이 되어 한티역·도곡동·대치동 거리를 걸어다니며,
+        일상 속에 숨어있는 <b>포물선·타원·쌍곡선·원</b>을 찾아보세요.<br><br>
+        단대부고 운동장을 도는 선수의 목소리를 수음하는 방송부의 파라볼라 마이크, 도로를 달리는 자동차의 포물선 전조등 반사경,
+        롯데백화점의 타원 돔, 도곡역 앞 쌍곡선 가로등갓까지 &mdash; 곳곳에 숨어있는 이차곡선을
+        클릭해서 점수를 모아보세요! 롯데백화점 옆 <b>콘란샵</b>과 <b>단대부고 정문</b>에 가까이 가면 들어갈지 물어봐요.<br><br>
+        이 동네의 전기는 전부 한티역 옆 <b>태양열 집광장치</b>에서 나와요. 반사판의 초점을 잘 맞출수록 도시가 밝아집니다.
+        <b>3분마다 낮과 밤이 바뀌니까</b>, 밤이 되면 가로등과 아파트 불빛으로 결과를 확인해보세요.
+        단대부고 옥상에는 주경이 포물면, 부경이 쌍곡면인 <b>카세그레인식 반사망원경</b>이 있어요 &mdash; 두 초점을 겹치면 은하수가 보입니다.
+        한티역·도곡역·학교 앞에는 <b>자전거</b>가 세워져 있어요. 타면 더 빨리 다닐 수 있고, 밤에는 전조등을 켜서 밝기를 조절해야 해요.
+      </p>
+      <div class="keys">
+        <span class="key">↑ / W 앞으로</span>
+        <span class="key">↓ / S 뒤로</span>
+        <span class="key">← / A 좌회전</span>
+        <span class="key">→ / D 우회전</span>
+        <span class="key">톡 누르기 = 이차곡선 찾기</span>
+        <span class="key">짧게 끌기 = 시점 회전</span>
+        <span class="key">꾹 누른 채 끌기 = 그 방향으로 이동</span>
+        <span class="key">🗺️ 버튼 = 미니맵 열기·접기</span>
+        <span class="key">🚲 자전거 앞에 서면 타기</span>
+        <span class="key">휠 / 슬라이더 = 확대·축소</span>
+      </div>
+      <div id="name-input-row">
+        <label for="player-name-input">내 이름</label>
+        <input type="text" id="player-name-input" maxlength="10" placeholder="이름을 입력하세요">
+      </div>
+      <button id="start-btn">입력한 이름으로 출발하기 →</button>
+    </div>
+  </div>
+
+  <div id="popup-overlay">
+    <div id="popup-card">
+      <span class="kind" id="pop-kind">포물선</span>
+      <h2 id="pop-title">제목</h2>
+      <div class="eq" id="pop-eq">y² = 4px</div>
+      <p id="pop-desc">설명</p>
+
+      <div id="pop-graph-wrap">
+        <canvas id="pop-graph" width="280" height="200"></canvas>
+        <div id="pop-slider-row">
+          <span id="pop-slider-name">r</span>
+          <input type="range" id="pop-slider" min="0" max="10" step="0.1" value="3">
+          <span id="pop-slider-val">3.0</span>
+        </div>
+        <div id="pop-slider-hint">슬라이더를 움직여 값이 바뀌면 모양이 어떻게 달라지는지 확인해보세요.</div>
+        <div id="solar-readout"></div>
+      </div>
+      <div id="pop-sky-wrap">
+        <canvas id="pop-sky-canvas" width="330" height="200"></canvas>
+        <div id="pop-sky-status">부경을 움직여 초점을 맞춰보세요</div>
+        <div id="pop-sky-row">
+          <span>부경 위치 d</span>
+          <input type="range" id="tele-slider" min="1.2" max="3.2" step="0.02" value="1.6">
+          <b id="tele-val">1.60</b>
+        </div>
+        <div id="pop-sky-hint">노란 점(주경의 초점)과 파란 점(쌍곡선의 초점)이 겹치면 상이 선명해져요.</div>
+      </div>
+
+      <div id="pop-mic-wrap">
+        <div style="font-size:12.5px; opacity:0.85;">🎙️ 마이크를 돌려서 트랙을 도는 선수 쪽으로 조준해보세요</div>
+        <div class="row">
+          <span>◀ 회전</span>
+          <input type="range" id="mic-slider" min="0" max="100" value="50">
+          <span>회전 ▶</span>
+        </div>
+        <div id="volume-meter"><div id="volume-meter-fg"></div></div>
+        <div id="mic-note">마이크가 선수를 정확히 조준할수록(초점에 소리가 정확히 모일수록) 소리와 운동장의 말풍선 이펙트가 크고 또렷해져요.</div>
+      </div>
+
+      <div class="pts" id="pop-pts">+100점 획득!</div>
+      <button class="main-btn" id="pop-close">계속 탐험하기</button>
+    </div>
+  </div>
+
+  <div id="entry-prompt-overlay">
+    <div id="entry-prompt-card">
+      <h3 id="entry-prompt-title">안으로 들어가시겠습니까?</h3>
+      <div class="btnrow">
+        <button id="entry-yes">네</button>
+        <button id="entry-no">아니요</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="exit-interior-btn">🚪 밖으로 나가기</button>
+  <button id="focus-action-btn">🎙️ 5초 녹음하기</button>
+  <div id="record-progress">🔴 녹음 중... 5초</div>
+
+  <div id="complete-banner">🎉 대치동의 이차곡선을 모두 찾았어요! <span id="complete-banner-name">진짜 이차곡선 마스터</span>! 🎉</div>
+
+  <div id="hud-score" class="panel">
+    <div class="title" id="hud-score-title">나의 점수</div>
+    <div class="score" id="score-val">0</div>
+    <div class="progress" id="progress-val">발견한 이차곡선 0 / 10</div>
+    <div class="bar-bg"><div class="bar-fg" id="progress-bar"></div></div>
+    <button id="leave-btn">🚪 나가기</button>
+  </div>
+
+  <div id="goodbye-overlay">
+    <div id="goodbye-card">
+      <h2 id="goodbye-title">수고했어요! 👋</h2>
+      <p id="goodbye-sub">오늘의 탐험 기록을 저장했어요.</p>
+    </div>
+  </div>
+
+  <div id="hud-list" class="panel collapsed">
+    <h3 id="list-toggle">🔍 이차곡선 도감 <span class="cnt" id="list-count">0/10</span><span class="caret" id="list-caret">▸</span></h3>
+    <div id="list-body"></div>
+  </div>
+
+  <div style="display:none"><b id="loc-label">대치아이파크</b></div>
+
+  <div id="zoom-ctrl" class="panel">
+    <button class="zoom-btn" id="zoom-out" title="축소">−</button>
+    <input type="range" id="zoom-slider" min="6" max="46" step="0.5" value="12">
+    <button class="zoom-btn" id="zoom-in" title="확대">＋</button>
+  </div>
+
+  <div id="minimap-label">미니맵 · 노란 화살표가 나 (지도를 누르면 접힘)</div>
+  <div id="minimap-wrap"></div>
+  <div id="minimap-btn" title="미니맵 열기">🗺️</div>
+
+  <div id="joystick"><div id="joystick-knob"></div></div>
+
+  <div id="bike-panel" class="panel">
+    <div class="bp-title">🚲 자전거 전조등</div>
+    <div class="bp-row"><span>초점 p</span><input type="range" id="bike-slider" min="0.02" max="0.30" step="0.005" value="0.16"><b id="bike-p-val">0.160</b></div>
+    <div class="bp-bar"><div class="bp-bar-fg" id="bike-bright-bar"></div></div>
+    <div class="bp-row2">밝기 <b id="bike-bright-val">0%</b> · 속도 <b id="bike-speed-val">1.00배</b></div>
+    <div class="bp-hint">반사판의 초점거리 p를 바꾸면 모이는 빛의 양이 달라져요. 밝을수록 빨리 달릴 수 있어요!</div>
+  </div>
+  <button id="bike-off-btn">🚲 자전거에서 내리기</button>
+
+  <div id="mp-status"><span class="led"></span><span id="mp-status-text">접속하는 중...</span></div>
+  <div id="time-badge" class="day">☀️ 낮</div>
+
+  <div id="dpad">
+    <div class="dpad-row"><div class="dpad-btn" id="btn-up">▲</div></div>
+    <div class="dpad-row">
+      <div class="dpad-btn" id="btn-left">◀</div>
+      <div class="dpad-btn" id="btn-down">▼</div>
+      <div class="dpad-btn" id="btn-right">▶</div>
+    </div>
+  </div>
+
+  <div id="crosshair"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   0. 기본 설정
+============================================================ */
+var WORLD_HALF = 160;
+var clock = new THREE.Clock();
+var container = document.getElementById('app');
+var started = false;
+
+// ---- v6: 실시간 멀티플레이어 + 도감 전송 설정(선택) ----
+// 선생님이 Firebase 프로젝트를 만든 뒤 이 값을 채우면, 같은 방(room)에 접속한 학생들의 위치가
+// 실시간으로 서로에게 보입니다. null이면(기본값) 기존처럼 혼자 플레이하며 외부 네트워크 요청이
+// 전혀 발생하지 않습니다. 설정 방법은 함께 전달된 안내 문서를 참고하세요.
+// ※ 선생님의 Firebase 프로젝트(2026geometry / geometry-c494f) 값이 이미 채워져 있습니다.
+//    다른 프로젝트로 바꾸려면 Firebase 콘솔 -> 프로젝트 설정 -> 내 앱 에서 나오는 값으로 교체하세요.
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCZzhvM-OJlmFrmPsHPSfm50WYzcqi5rSE",
+  authDomain: "geometry-c494f.firebaseapp.com",
+  databaseURL: "https://geometry-c494f-default-rtdb.firebaseio.com",
+  projectId: "geometry-c494f",
+  storageBucket: "geometry-c494f.firebasestorage.app",
+  messagingSenderId: "596006207599",
+  appId: "1:596006207599:web:a9140de45a860fe13ecd9a"
+};
+// 학생이 '나가기'를 누르고 도감 전송을 확인하면 이 URL(Google Apps Script 웹앱)로 기록을 보냅니다.
+// 비워두면(기본값) 대신 이 기기에 CSV 파일로 다운로드됩니다.
+var SHEETS_WEBHOOK_URL = '';
+// 방 이름은 Firebase 경로의 키로 쓰이므로 . $ # [ ] / 같은 문자가 들어가면 접속이 통째로 실패한다.
+// (예: ?room=3-1.반) 안전한 문자로 바꿔주고, 비어 있으면 기본 교실 이름을 쓴다.
+var MULTIPLAYER_ROOM = (function(){
+  var raw = new URLSearchParams(location.search).get('room') || '';
+  var safe = raw.replace(/[.$#\[\]\/]/g, '-').replace(/[\x00-\x1f\x7f]/g, '').trim();
+  return safe || 'daechi-classroom';
+})();
+var STUDENT_ID = 'p_' + Math.random().toString(36).slice(2,9);
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fc7ee);
+scene.fog = new THREE.Fog(0xcfe8f5, 110, 270);
+
+var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
+camera.position.set(0, 20, 40);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.domElement.style.touchAction = 'none';
+container.insertBefore(renderer.domElement, container.firstChild);
+
+window.addEventListener('resize', function(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================
+   1. 조명 / 하늘 (맑은 낮)
+============================================================ */
+var hemi = new THREE.HemisphereLight(0xbfe3ff, 0x6b8f4f, 0.8);
+scene.add(hemi);
+
+var sun = new THREE.DirectionalLight(0xfff4e0, 1.25);
+sun.position.set(45, 120, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -170; sun.shadow.camera.right = 170;
+sun.shadow.camera.top = 170; sun.shadow.camera.bottom = -170;
+sun.shadow.camera.near = 10; sun.shadow.camera.far = 320;
+sun.shadow.bias = -0.0015;
+scene.add(sun);
+var ambientLight = new THREE.AmbientLight(0xffffff, 0.28);
+scene.add(ambientLight);
+
+// sky dome (낮/밤에 따라 색이 변하는 하늘 그라디언트)
+var skyMat = null, sunSprite = null, moonSprite = null, starDome = null;
+(function(){
+  var skyGeo = new THREE.SphereGeometry(280, 24, 16);
+  skyMat = new THREE.ShaderMaterial({
+    uniforms: { top: {value: new THREE.Color(0x2f7fd6)}, bottom: {value: new THREE.Color(0xeaf7ff)} },
+    vertexShader: "varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+    fragmentShader: "varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = normalize(vPos).y * 0.5 + 0.5; gl_FragColor = vec4(mix(bottom, top, clamp(h*1.3,0.0,1.0)), 1.0); }",
+    side: THREE.BackSide, depthWrite:false
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+  // 밤하늘 별 (낮에는 투명도 0)
+  var starTex = (function(){
+    var c = document.createElement('canvas'); c.width=c.height=1024;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,1024,1024);
+    // 은하수 띠
+    var band = ctx.createLinearGradient(0,300,0,620);
+    band.addColorStop(0,'rgba(90,80,160,0)');
+    band.addColorStop(0.5,'rgba(150,140,220,0.30)');
+    band.addColorStop(1,'rgba(90,80,160,0)');
+    ctx.fillStyle = band; ctx.fillRect(0,300,1024,320);
+    for(var i=0;i<2600;i++){
+      var x = Math.random()*1024;
+      // 은하수 띠 근처에 별을 더 촘촘하게
+      var y = (Math.random()<0.45) ? (380+Math.random()*160) : Math.random()*1024;
+      var r = Math.random()<0.94 ? Math.random()*1.1+0.3 : Math.random()*2.0+1.2;
+      var a = 0.35+Math.random()*0.65;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,'+a.toFixed(2)+')'; ctx.fill();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    return tex;
+  })();
+  starDome = new THREE.Mesh(new THREE.SphereGeometry(272, 24, 16),
+    new THREE.MeshBasicMaterial({ map:starTex, side:THREE.BackSide, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending }));
+  scene.add(starDome);
+  // 해
+  sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color:0xfff8e0, transparent:true, opacity:0.9, depthWrite:false }));
+  sunSprite.scale.set(26,26,1);
+  sunSprite.position.set(120, 150, -140);
+  scene.add(sunSprite);
+  // 달
+  moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color:0xdfe8ff, transparent:true, opacity:0, depthWrite:false }));
+  moonSprite.scale.set(17,17,1);
+  moonSprite.position.set(-130, 140, 120);
+  scene.add(moonSprite);
+})();
+
+/* ---- 밤낮 주기 (총 3분: 낮 60초 -> 해질녘 30초 -> 밤 60초 -> 새벽 30초) ----
+   dayFactor: 1 = 밝은 낮, 0 = 한밤. 도시의 조명은 태양열 집광장치의 효율(cityPower)에 따라 밝기가 달라짐. */
+var DAY_LEN = 60, DUSK_LEN = 30, NIGHT_LEN = 60, DAWN_LEN = 30;
+var CYCLE_LEN = DAY_LEN + DUSK_LEN + NIGHT_LEN + DAWN_LEN;   // 180초
+var dayFactor = 1;      // 1=낮, 0=밤
+var nightFactor = 0;    // 1-dayFactor
+var isNight = false;    // 전조등을 켤 만큼 어두운가
+var cityPower = 1;      // 태양열 집광 효율에서 계산 (0.25~1.0)
+var NIGHT_LAMPS = [];   // 가로등 {bulb, glow, mesh}
+var NIGHT_WINDOW_MATS = [];
+function computeDayFactor(t){
+  var p = t % CYCLE_LEN;
+  if(p < DAY_LEN) return 1;
+  if(p < DAY_LEN+DUSK_LEN) return 1 - (p-DAY_LEN)/DUSK_LEN;
+  if(p < DAY_LEN+DUSK_LEN+NIGHT_LEN) return 0;
+  return (p - (DAY_LEN+DUSK_LEN+NIGHT_LEN))/DAWN_LEN;
+}
+
+/* ============================================================
+   2. 유틸 함수
+============================================================ */
+// 이차곡선 식(eq)을 팝업에 표시할 때 "x²/a²" 대신 실제 분수 형태(분자/가로선/분모)의
+// HTML로 렌더링하기 위한 헬퍼. eq 문자열은 이 함수로 조립하고, 팝업에서는 innerHTML로 그려짐.
+function frac(num, den){
+  return '<span class="frac"><span class="fn">'+num+'</span><span class="fd">'+den+'</span></span>';
+}
+// 라벨 캔버스를 그리는 공용 로직 (make/update 둘 다에서 재사용)
+// 글씨가 안테나 등 3D 오브젝트를 가리는 문제를 줄이기 위해 기본 폰트 크기를 기존의 절반 수준으로 낮춤.
+function drawLabelCanvas(text, opts){
+  opts = opts || {};
+  var pad = 12;
+  var fontSize = opts.fontSize || 23;
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  ctx.font = 'bold ' + fontSize + 'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+  var w = Math.ceil(ctx.measureText(text).width) + pad*2;
+  var h = fontSize + pad*1.6;
+  canvas.width = w; canvas.height = h;
+  ctx.font = 'bold ' + fontSize + 'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+  ctx.fillStyle = opts.bg || 'rgba(15,20,32,0.78)';
+  roundRect(ctx, 2,2, w-4, h-4, 12); ctx.fill();
+  ctx.strokeStyle = opts.border || 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2.2;
+  roundRect(ctx, 2,2, w-4, h-4, 12); ctx.stroke();
+  ctx.fillStyle = opts.color || '#ffffff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, w/2, h/2 + 2);
+  return { canvas:canvas, w:w, h:h };
+}
+function makeLabelSprite(text, opts){
+  opts = opts || {};
+  var d = drawLabelCanvas(text, opts);
+  var tex = new THREE.CanvasTexture(d.canvas);
+  tex.minFilter = THREE.LinearFilter;
+  var mat = new THREE.SpriteMaterial({ map:tex, depthTest:true, transparent:true });
+  var spr = new THREE.Sprite(mat);
+  var scale = opts.scale || 0.045;
+  spr.scale.set(d.w*scale, d.h*scale, 1);
+  return spr;
+}
+// 기존 라벨 스프라이트의 문구를 다시 그려 교체 (예: 시작 화면에서 입력한 학생 이름을 캐릭터 이름표에 반영)
+function updateLabelSprite(spr, text, opts){
+  opts = opts || {};
+  var d = drawLabelCanvas(text, opts);
+  var tex = new THREE.CanvasTexture(d.canvas);
+  tex.minFilter = THREE.LinearFilter;
+  if(spr.material.map) spr.material.map.dispose();
+  spr.material.map = tex;
+  spr.material.needsUpdate = true;
+  var scale = opts.scale || 0.045;
+  spr.scale.set(d.w*scale, d.h*scale, 1);
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+// 창문 텍스처. userData.isWindow 표식을 달아두면 나중에 한 번 훑어서 "밤에 불이 켜지는 창문"으로 등록됨.
+function windowTexture(cols, rows, colorLit, colorDark){
+  var c = document.createElement('canvas'); c.width=64; c.height=128;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#2a2f3d'; ctx.fillRect(0,0,64,128);
+  var cw = 64/cols, rh = 128/rows;
+  for(var i=0;i<cols;i++){
+    for(var j=0;j<rows;j++){
+      ctx.fillStyle = Math.random() > 0.4 ? colorLit : colorDark;
+      ctx.fillRect(i*cw+2, j*rh+2, cw-4, rh-4);
+    }
+  }
+  var tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.userData = { isWindow:true };
+  return tex;
+}
+function box(w,h,d,color,opts){
+  opts = opts || {};
+  var geo = new THREE.BoxGeometry(w,h,d);
+  var mat = new THREE.MeshStandardMaterial({ color:color, roughness: opts.roughness!==undefined?opts.roughness:0.85, metalness: opts.metalness||0.05, map:opts.map||null, transparent:!!opts.transparent, opacity:opts.opacity!==undefined?opts.opacity:1 });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function cyl(rt,rb,h,seg,color,opts){
+  opts = opts||{};
+  var geo = new THREE.CylinderGeometry(rt,rb,h,seg||16);
+  var mat = new THREE.MeshStandardMaterial({ color:color, roughness:opts.roughness!==undefined?opts.roughness:0.8, metalness:opts.metalness||0.1 });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function group(){ return new THREE.Group(); }
+
+// 포물선 프로필을 회전시켜 접시(paraboloid) 만들기 -- y = a*r^2, a = depth/radius^2 (=1/4p 근사)
+function buildParabolaPoints(radius, depth){
+  var a = depth / (radius*radius);
+  var pts = [];
+  var N = 14;
+  for(var i=0;i<=N;i++){
+    var r = radius * (i/N);
+    var y = a * r * r;
+    pts.push(new THREE.Vector2(Math.max(r,0.001), y));
+  }
+  return pts;
+}
+function makeParabolicDish(radius, depth, color, opts){
+  opts = opts || {};
+  var pts = buildParabolaPoints(radius, depth);
+  var geo = new THREE.LatheGeometry(pts, 28);
+  var mat = new THREE.MeshStandardMaterial({ color:color, metalness:opts.metalness!==undefined?opts.metalness:0.55, roughness:opts.roughness!==undefined?opts.roughness:0.35, side: THREE.DoubleSide, emissive: opts.emissive||0x000000, emissiveIntensity: opts.emissiveIntensity||0 });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+// p(초점거리) 값을 바꿔 기존 파라볼라 접시 지오메트리를 다시 생성 (실시간 반응형 데모용)
+function regenParabolicDish(mesh, radius, p){
+  var depth = (radius*radius) / (4*Math.max(p, 0.01));
+  var pts = buildParabolaPoints(radius, depth);
+  var newGeo = new THREE.LatheGeometry(pts, 28);
+  mesh.geometry.dispose();
+  mesh.geometry = newGeo;
+}
+
+// 쌍곡선 프로필 회전 -- 실제 냉각탑/전등갓에 쓰이는 쌍곡면(hyperboloid) x = a*sqrt(1+(y/b)^2)
+function makeHyperboloid(aRadius, bHeight, totalHeight, color, opts){
+  opts = opts || {};
+  var pts = [];
+  var N = 16;
+  for(var i=0;i<=N;i++){
+    var y = -totalHeight/2 + totalHeight*(i/N);
+    var r = aRadius * Math.sqrt(1 + (y/bHeight)*(y/bHeight));
+    pts.push(new THREE.Vector2(r, y + totalHeight/2));
+  }
+  var geo = new THREE.LatheGeometry(pts, 28);
+  var mat = new THREE.MeshStandardMaterial({ color:color, metalness:opts.metalness!==undefined?opts.metalness:0.4, roughness:opts.roughness!==undefined?opts.roughness:0.6, side:THREE.DoubleSide });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+// 볼록 쌍곡면 거울(카세그레인식 망원경의 부경). 아래쪽으로 볼록하게 튀어나온 모양.
+// 프로필: y = -a*(sqrt(1 + (r/b)^2) - 1)  -> 쌍곡선 y²/a² - x²/b² = 1 의 아래쪽 가지 모양
+function makeHyperbolicSecondary(radius, aParam, bParam, color){
+  var pts = [];
+  var N = 14;
+  for(var i=0;i<=N;i++){
+    var r = radius*(i/N);
+    var y = -aParam*(Math.sqrt(1 + (r/bParam)*(r/bParam)) - 1);
+    pts.push(new THREE.Vector2(Math.max(r,0.001), y));
+  }
+  var geo = new THREE.LatheGeometry(pts, 24);
+  var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:color, metalness:0.95, roughness:0.05, side:THREE.DoubleSide }));
+  m.castShadow = true;
+  return m;
+}
+// 반사망원경 상태. fp = 주경(포물면)의 초점거리, s = 부경 꼭짓점에서 가까운 초점까지의 거리,
+// d = 주경 꼭짓점에서 부경까지의 거리(슬라이더). d + s = fp 일 때 두 초점이 정확히 겹쳐 상이 선명해진다.
+var TELE = { R:1.15, fp:3.2, a:0.55, b:0.95, s:1.0, d:1.6, tol:0.30, sharp:0,
+             secondary:null, primary:null, fMark:null, sMark:null };
+
+// 타원 고리(원을 한 축으로만 스케일 -> 타원)
+function makeEllipseRing(a, b, tube, color, opts){
+  opts = opts || {};
+  var geo = new THREE.TorusGeometry(a, tube, 12, 60);
+  var mat = new THREE.MeshStandardMaterial({ color:color, metalness:opts.metalness||0.3, roughness:opts.roughness!==undefined?opts.roughness:0.4, transparent:!!opts.transparent, opacity:opts.opacity!==undefined?opts.opacity:1 });
+  var m = new THREE.Mesh(geo, mat);
+  // torus lies natively in local XY; after rotation.x=90deg local Y maps to world Z,
+  // so scale local Y (not Z) to control the world-Z radius and form a true ellipse.
+  m.scale.set(1, b/a, 1);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+// 원(아치) -- TorusGeometry의 thetaLength 제한. r 값을 바꿀 수 있도록 지오메트리 재생성 지원.
+function makeArch(radius, tube, color){
+  var geo = new THREE.TorusGeometry(radius, tube, 10, 32, Math.PI);
+  var mat = new THREE.MeshStandardMaterial({ color:color, roughness:0.6, metalness:0.35 });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function regenArch(mesh, pillarL, pillarR, baseR, newR){
+  var newGeo = new THREE.TorusGeometry(newR, 0.35, 10, 32, Math.PI);
+  mesh.geometry.dispose();
+  mesh.geometry = newGeo;
+  mesh.position.y = newR;
+  var s = newR/baseR;
+  pillarL.scale.y = s; pillarL.position.y = newR/2; pillarL.position.x = -newR;
+  pillarR.scale.y = s; pillarR.position.y = newR/2; pillarR.position.x = newR;
+}
+
+// 포물선 케이블/궤적(현수교, 분수) - y = h - k*(x-c)^2
+function makeParabolaCurveTube(p0, p1, sag, radius, color, opts){
+  opts = opts || {};
+  var N = 20;
+  var pts = [];
+  for(var i=0;i<=N;i++){
+    var t = i/N;
+    var x = THREE.MathUtils.lerp(p0.x, p1.x, t);
+    var y = THREE.MathUtils.lerp(p0.y, p1.y, t) + sag*4*t*(1-t);
+    var z = THREE.MathUtils.lerp(p0.z, p1.z, t);
+    pts.push(new THREE.Vector3(x,y,z));
+  }
+  var curve = new THREE.CatmullRomCurve3(pts);
+  var geo = new THREE.TubeGeometry(curve, 24, radius, 8, false);
+  var mat = new THREE.MeshStandardMaterial({ color:color, emissive: opts.emissive||0x000000, emissiveIntensity:opts.emissiveIntensity||0, metalness:0.3, roughness:0.5 });
+  var m = new THREE.Mesh(geo, mat);
+  m.castShadow = true;
+  return m;
+}
+// 분수대 물줄기 슬라이더(p)를 움직이면 실제 물줄기 곡선 지오메트리를 다시 그림.
+// p가 작을수록(초점이 가까울수록) 포물선이 좁고 높게, p가 클수록 넓고 낮게 뿜어져 나오도록 재계산.
+function regenFountainJets(jetsGroup, p){
+  var sag = (1.3*1.3)/(4*p);
+  jetsGroup.children.forEach(function(mesh, i){
+    var ang = i/6*Math.PI*2;
+    var p0 = new THREE.Vector3(Math.cos(ang)*0.3, 0.55, 12+Math.sin(ang)*0.3);
+    var p1 = new THREE.Vector3(Math.cos(ang)*2.6, 0.55, 12+Math.sin(ang)*2.6);
+    var N=20, pts=[];
+    for(var k=0;k<=N;k++){
+      var t = k/N;
+      var x = THREE.MathUtils.lerp(p0.x,p1.x,t);
+      var y = THREE.MathUtils.lerp(p0.y,p1.y,t) + sag*4*t*(1-t);
+      var z = THREE.MathUtils.lerp(p0.z,p1.z,t);
+      pts.push(new THREE.Vector3(x,y,z));
+    }
+    var curve = new THREE.CatmullRomCurve3(pts);
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.TubeGeometry(curve, 24, 0.09, 8, false);
+  });
+}
+function makeSimplePerson(shirtColor, skinColor){
+  var g = group();
+  var legs = cyl(0.16,0.16,0.9,8,0x2b2b3a); legs.position.y=0.45; g.add(legs);
+  var body = cyl(0.28,0.22,0.9,8,shirtColor); body.position.y=1.25; g.add(body);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,10), new THREE.MeshStandardMaterial({color:skinColor}));
+  head.position.y=1.85; head.castShadow=true; g.add(head);
+  g.traverse(function(c){ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } });
+  return g;
+}
+function makeTree(x,z){
+  var g = group();
+  var trunk = cyl(0.35,0.45,3,8,0x6b4a30);
+  trunk.position.y = 1.5; g.add(trunk);
+  var top = cyl(0,2.4,4.4,10,0x357a3d);
+  top.position.y = 4.6; g.add(top);
+  g.position.set(x,0,z);
+  g.scale.setScalar(0.85+Math.random()*0.4);
+  return g;
+}
+function makeGlowRing(color){
+  var geo = new THREE.RingGeometry(1.1, 1.4, 24);
+  var mat = new THREE.MeshBasicMaterial({ color:color, side:THREE.DoubleSide, transparent:true, opacity:0.85 });
+  var m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI/2;
+  return m;
+}
+// 검은 철제 격자문 텍스처(캔버스) -- 정문 게이트 장식용
+function ironGateTexture(){
+  var c = document.createElement('canvas'); c.width=128; c.height=192;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,128,192);
+  ctx.strokeStyle = '#161616'; ctx.lineWidth = 10; ctx.lineCap='round';
+  for(var i=0;i<7;i++){
+    var x = 10 + i*18;
+    ctx.beginPath(); ctx.moveTo(x,6); ctx.lineTo(x,186); ctx.stroke();
+  }
+  ctx.lineWidth = 8;
+  [30,100,160].forEach(function(y){
+    ctx.beginPath(); ctx.moveTo(6,y); ctx.lineTo(122,y); ctx.stroke();
+  });
+  var tex = new THREE.CanvasTexture(c);
+  return tex;
+}
+// 원형 교표 엠블럼(빨강/파랑/흰색 태극 + 高) -- 학교 정문 장식용
+function schoolEmblemTexture(){
+  var c = document.createElement('canvas'); c.width=128; c.height=128;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,128,128);
+  ctx.beginPath(); ctx.arc(64,64,60,0,Math.PI*2); ctx.fillStyle='#f2f0e8'; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(64,64,60,0,Math.PI*2); ctx.clip();
+  ctx.beginPath(); ctx.moveTo(64,4); ctx.arc(64,64,60,-Math.PI/2,Math.PI/2,false); ctx.closePath(); ctx.fillStyle='#c23b3b'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(64,124); ctx.arc(64,64,60,Math.PI/2,Math.PI*1.5,false); ctx.closePath(); ctx.fillStyle='#2c4fa0'; ctx.fill();
+  ctx.restore();
+  // 바깥 초록 테두리 (학교 마크)
+  ctx.beginPath(); ctx.arc(64,64,60,0,Math.PI*2); ctx.strokeStyle='#1c6b3a'; ctx.lineWidth=9; ctx.stroke();
+  ctx.beginPath(); ctx.arc(64,64,55,0,Math.PI*2); ctx.strokeStyle='#0f2f1c'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(64,64,26,0,Math.PI*2); ctx.fillStyle='#f4e04d'; ctx.fill();
+  ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#1a1a1a'; ctx.font='bold 28px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('高', 64, 66);
+  var tex = new THREE.CanvasTexture(c);
+  return tex;
+}
+
+/* ============================================================
+   3. 이차곡선(수집 대상) 레지스트리
+============================================================ */
+var conics = [];      // {id,type,name,eq,desc,points,mesh,found,shapeParam}
+var carHeadlightMeshes = []; // 자동차 전조등(보너스, 반복 클릭 가능)
+var foundCarSet = {};
+var score = 0;
+var conicMeshRegistry = {};
+var stoppedCarId = null; // 전조등 슬라이더 팝업을 보는 동안 정지시켜 둔 자동차
+
+function registerConic(def){
+  def.found = false;
+  def.mesh.userData.conicId = def.id;
+  def.mesh.traverse(function(c){ c.userData.conicId = def.id; });
+  if(!def.shapeParam && def.id !== 'parabola_mic'){
+    if(def.type === '원'){
+      def.shapeParam = { kind:'circle', value:3.4, min:1.6, max:6.5, step:0.1, apply:null };
+    } else if(def.type === '포물선'){
+      def.shapeParam = { kind:'parabola', value:1.0, min:0.3, max:3.0, step:0.05, apply:null };
+    }
+  }
+  conics.push(def);
+  conicMeshRegistry[def.id] = def.mesh;
+  return def;
+}
+
+/* ============================================================
+   4. 땅 / 도로 시스템
+============================================================ */
+var world = group(); scene.add(world);
+
+// 잔디 바닥
+var groundTex = (function(){
+  var c = document.createElement('canvas'); c.width=c.height=256;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#5da85f'; ctx.fillRect(0,0,256,256);
+  for(var i=0;i<900;i++){
+    ctx.fillStyle = Math.random()>0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+    ctx.fillRect(Math.random()*256, Math.random()*256, 2,2);
+  }
+  var tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(40,40);
+  return tex;
+})();
+var groundMat = new THREE.MeshStandardMaterial({ color: 0x6cb56d, map:groundTex, roughness:1 });
+var groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_HALF*2.4, WORLD_HALF*2.4), groundMat);
+groundMesh.rotation.x = -Math.PI/2;
+groundMesh.receiveShadow = true;
+world.add(groundMesh);
+
+var roadMat = new THREE.MeshStandardMaterial({ color:0x363a42, roughness:0.9 });
+var sidewalkMat = new THREE.MeshStandardMaterial({ color:0xc4bfae, roughness:1 });
+var lineMat = new THREE.MeshBasicMaterial({ color:0xf3d15a });
+var ROAD_SEGMENTS_2D = []; // 미니맵 그리기용 {ax,az,bx,bz}
+
+// v7: 도로를 "정의만" 먼저 모아두고(ROAD_DEFS), 전부 정의된 뒤에 한꺼번에 그린다.
+// 이렇게 해야 교차로에서 인도(흰색 띠)와 중앙선이 다른 도로를 가로막지 않도록
+// 겹치는 조각만 골라서 빼놓을 수 있음.
+var ROAD_DEFS = [];
+function roadSegment(nodeA, nodeB, width){
+  width = width || 8;
+  ROAD_SEGMENTS_2D.push({ax:nodeA.x, az:nodeA.z, bx:nodeB.x, bz:nodeB.z});
+  var dx = nodeB.x-nodeA.x, dz = nodeB.z-nodeA.z;
+  var len = Math.sqrt(dx*dx+dz*dz) || 0.001;
+  var def = {
+    ax:nodeA.x, az:nodeA.z, bx:nodeB.x, bz:nodeB.z,
+    cx:(nodeA.x+nodeB.x)/2, cz:(nodeA.z+nodeB.z)/2,
+    fx:dx/len, fz:dz/len, len:len, width:width, ang:Math.atan2(dx,dz)
+  };
+  ROAD_DEFS.push(def);
+  return def;
+}
+
+// 점(x,z)이 도로 사각형 안에 있는지 (padW/padL 만큼 여유를 둠)
+function insideRoad(def, x, z, padW, padL){
+  var px = x-def.cx, pz = z-def.cz;
+  var along = px*def.fx + pz*def.fz;
+  var across = px*(-def.fz) + pz*(def.fx);
+  return Math.abs(along) <= def.len/2 + (padL||0) && Math.abs(across) <= def.width/2 + (padW||0);
+}
+// 두 도로가 거의 나란한가 (일직선으로 이어지는 구간은 교차로가 아님)
+function nearlyParallel(a,b){
+  return Math.abs(a.fx*b.fz - a.fz*b.fx) < 0.25;
+}
+function blockedByOther(def, x, z, padW, padL){
+  for(var i=0;i<ROAD_DEFS.length;i++){
+    var o = ROAD_DEFS[i];
+    if(o===def || nearlyParallel(def,o)) continue;
+    if(insideRoad(o, x, z, padW, padL)) return true;
+  }
+  return false;
+}
+
+// 교차로에서 좌/우회전 유도선(흰 점선)을 그림
+function drawTurnGuide(g, J, A, B, mat){
+  var LA = A.width/4, LB = B.width/4;
+  var dA = B.width/2 + 2.2, dB = A.width/2 + 2.2;
+  var arAx = -A.fz, arAz = A.fx;   // A 바깥방향 기준 오른쪽
+  var arBx = -B.fz, arBz = B.fx;
+  // 교차로로 들어오는 차선(우측통행) -> 나가는 차선
+  var Sx = J.x + A.fx*dA - arAx*LA, Sz = J.z + A.fz*dA - arAz*LA;
+  var Ex = J.x + B.fx*dB + arBx*LB, Ez = J.z + B.fz*dB + arBz*LB;
+  var N = 7;
+  for(var i=0;i<N;i++){
+    var t = (i+0.5)/N, mt = 1-t;
+    var x = mt*mt*Sx + 2*mt*t*J.x + t*t*Ex;
+    var z = mt*mt*Sz + 2*mt*t*J.z + t*t*Ez;
+    var tx = 2*mt*(J.x-Sx) + 2*t*(Ex-J.x);
+    var tz = 2*mt*(J.z-Sz) + 2*t*(Ez-J.z);
+    var d = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.95), mat);
+    d.rotation.x = -Math.PI/2; d.rotation.z = -Math.atan2(tx,tz);
+    d.position.set(x, 0.042, z);
+    g.add(d);
+  }
+}
+
+function buildRoads(){
+  var g = group();
+  // 1) 도로 바닥
+  ROAD_DEFS.forEach(function(def){
+    var road = new THREE.Mesh(new THREE.PlaneGeometry(def.width, def.len), roadMat);
+    road.rotation.x = -Math.PI/2; road.rotation.z = -def.ang;
+    road.position.set(def.cx, 0.02, def.cz);
+    road.receiveShadow = true;
+    g.add(road);
+  });
+  // 2) 인도 -- 짧은 칸으로 나눠 다른 도로를 가로막는 칸은 빼고(교차로가 뚫림),
+  //    남은 칸들은 "연속 구간"으로 다시 이어붙여 한 덩어리 메시로 그림 (아이패드 성능 고려)
+  ROAD_DEFS.forEach(function(def){
+    var rx = -def.fz, rz = def.fx;
+    var n = Math.max(1, Math.round(def.len/2.0));
+    var step = def.len/n;
+    [-1,1].forEach(function(side){
+      var off = side*(def.width/2 + 1.3);
+      var runStart = -1;
+      function flushRun(endIdx){
+        if(runStart < 0) return;
+        var t0 = runStart*step - def.len/2, t1 = (endIdx+1)*step - def.len/2;
+        var segLen = t1-t0, mid = (t0+t1)/2;
+        var sw = new THREE.Mesh(new THREE.PlaneGeometry(2.4, segLen), sidewalkMat);
+        sw.rotation.x = -Math.PI/2; sw.rotation.z = -def.ang;
+        sw.position.set(def.cx + def.fx*mid + rx*off, 0.03, def.cz + def.fz*mid + rz*off);
+        sw.receiveShadow = true;
+        g.add(sw);
+        runStart = -1;
+      }
+      for(var i=0;i<n;i++){
+        var t = (i+0.5)*step - def.len/2;
+        var x = def.cx + def.fx*t + rx*off;
+        var z = def.cz + def.fz*t + rz*off;
+        // 길이 방향으로는 거의 늘리지 않음. (늘리면 T자 교차로에서 "건너오지도 않는" 반대편 인도까지 지워짐)
+        if(blockedByOther(def, x, z, 2.8, 0.6)){ flushRun(i-1); continue; }
+        if(runStart < 0) runStart = i;
+      }
+      flushRun(n-1);
+    });
+  });
+  // 3) 노란 중앙선 -- 교차로 안에서는 끊김
+  ROAD_DEFS.forEach(function(def){
+    var dashCount = Math.max(1, Math.floor(def.len/6));
+    for(var i=0;i<dashCount;i++){
+      var t = ((i+0.5)/dashCount - 0.5)*def.len;
+      var x = def.cx + def.fx*t, z = def.cz + def.fz*t;
+      if(blockedByOther(def, x, z, 1.2, 1.2)) continue;
+      var dash = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 2.4), lineMat);
+      dash.rotation.x = -Math.PI/2; dash.rotation.z = -def.ang;
+      dash.position.set(x, 0.035, z);
+      g.add(dash);
+    }
+  });
+  // 4) 삼거리/사거리 회전 유도 점선
+  //    (도로 "중간"에 다른 길이 붙는 T자 교차로까지 잡아내야 해서, 끝점끼리 비교하는 것만으로는 부족함)
+  var junctions = {};
+  function addJunctionRoad(key, J, fx, fz, width){
+    if(!junctions[key]) junctions[key] = { x:J.x, z:J.z, roads:[] };
+    var rs = junctions[key].roads;
+    for(var i=0;i<rs.length;i++){
+      if(Math.abs(rs[i].fx-fx)<0.03 && Math.abs(rs[i].fz-fz)<0.03) return;  // 같은 방향 중복 방지
+    }
+    rs.push({ fx:fx, fz:fz, width:width });
+  }
+  var cand = {};
+  ROAD_DEFS.forEach(function(d){
+    [[d.ax,d.az],[d.bx,d.bz]].forEach(function(p){
+      cand[Math.round(p[0])+','+Math.round(p[1])] = { x:p[0], z:p[1] };
+    });
+  });
+  Object.keys(cand).forEach(function(key){
+    var J = cand[key];
+    ROAD_DEFS.forEach(function(d){
+      if(Math.hypot(J.x-d.ax, J.z-d.az) < 1.5){ addJunctionRoad(key, J, d.fx, d.fz, d.width); return; }
+      if(Math.hypot(J.x-d.bx, J.z-d.bz) < 1.5){ addJunctionRoad(key, J, -d.fx, -d.fz, d.width); return; }
+      var px = J.x-d.cx, pz = J.z-d.cz;
+      var along = px*d.fx + pz*d.fz, across = px*(-d.fz) + pz*d.fx;
+      if(Math.abs(across) < 1.5 && Math.abs(along) < d.len/2 - 1.5){
+        addJunctionRoad(key, J, d.fx, d.fz, d.width);        // 지나가는 도로는 양쪽 방향 모두 접속
+        addJunctionRoad(key, J, -d.fx, -d.fz, d.width);
+      }
+    });
+  });
+  var guideMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.8 });
+  Object.keys(junctions).forEach(function(k){
+    var J = junctions[k];
+    if(J.roads.length < 3) return;   // 삼거리 이상만
+    for(var i=0;i<J.roads.length;i++){
+      for(var j=0;j<J.roads.length;j++){
+        if(i===j) continue;
+        var A = J.roads[i], B = J.roads[j];
+        if(Math.abs(A.fx*B.fz - A.fz*B.fx) < 0.25) continue;  // 직진은 유도선 없음
+        // 진입 방향 h1 = -A 기준 오른쪽으로 도는 경우에만 그려서 쌍마다 한 번씩만 나오게 함
+        var rx = A.fz, rz = -A.fx;
+        if(B.fx*rx + B.fz*rz <= 0) continue;
+        drawTurnGuide(g, J, A, B, guideMat);
+      }
+    }
+  });
+  world.add(g);
+}
+
+// 도로 노드 -- 사용자가 그려준 손그림 약도 기준으로 완전히 재배치 (v5)
+// (맨 위 가로 도로에 도곡역, 그 아래 서쪽 컬럼: 아파트2(래미안대치팰리스)-단대부고,
+//  동쪽 컬럼: 아파트3/아파트1(대치아이파크) -- 두 컬럼 사이를 중앙 간선도로(스파인, x=0)가
+//  세로로 관통하고, 각 건물은 정문이 "북쪽"을 바라보도록 스파인에서 갈라져 나온 진입로로 연결됨.
+//  스파인은 남쪽으로 내려가 한티역 앞 사거리(횡단보도 4개)에 닿고, 사거리 동쪽에 한티역,
+//  더 남쪽에 미술관·롯데백화점이 나란히 서있음. 대치역/양재천은 이번 약도에 없어 지도에서 제거.)
+var SCHOOL_X = -34, IPARK_X = 34;
+var NODES = {
+  dogok: {x: IPARK_X, z:-140},        // 도곡역 (맨 위 도로 동쪽 끝)
+  topWest: {x: SCHOOL_X, z:-140},     // 맨 위 도로 서쪽 끝
+  raemianGate: {x: SCHOOL_X, z:-95},  // 아파트2 = 래미안대치팰리스 진입로
+  iparkGate: {x: IPARK_X, z:-95},     // 아파트3 = 대치아이파크 정문
+  schoolGate: {x:-10, z:-30},         // 단대부고 정문 (v6: 북쪽 -> 동쪽으로 회전, 새 아파트와 마주봄)
+  schoolField: {x:-50, z:-30},        // 학교 운동장 (v7: 교내라서 도로 없음 -- 좌표만 유지)
+  iparkHome: {x: IPARK_X, z:-30},     // 아파트1 = 대치아이파크 저층동 (같은 단지)
+  hanti: {x:0, z:45},                 // 한티역 앞 사거리 (횡단보도)
+  hantiStation: {x:46, z:45},         // 한티역
+  // v8: 두 건물은 한티역 사거리에서 내려오는 플레이어를 향해 "정면(유리 파사드)이 마주보도록"
+  //     180도 돌려놓았다. 아래 좌표는 건물 앞(북쪽)을 지나는 동서 도로 위의 지점이고,
+  //     건물 본체는 이 도로보다 남쪽(z가 큰 쪽)에 서서 북쪽을 바라본다.
+  conran: {x:-26, z:62},              // 콘란샵 앞 도로 (건물은 이 남쪽에서 북향)
+  lotte: {x:26, z:62},                // 롯데백화점 앞 도로 (건물은 이 남쪽에서 북향)
+  southEnd: {x:0, z:110},             // 도로가 계속 이어지는 남쪽 끝
+};
+
+roadSegment(NODES.topWest, NODES.dogok, 9);                          // 맨 위 가로 도로 (도곡역)
+roadSegment({x:0,z:-140}, NODES.hanti, 9);                            // 중앙 간선도로(스파인)
+roadSegment({x:0,z:-95}, NODES.raemianGate, 8);                       // 아파트2(래미안) 진입로
+roadSegment({x:0,z:-115}, {x:IPARK_X,z:-115}, 8);                     // 아파트3(아이파크) 진입로 - 동서 연결
+roadSegment({x:IPARK_X,z:-115}, NODES.iparkGate, 8);                  // 아파트3 정문 (북->남 접근)
+roadSegment(NODES.schoolGate, {x:0,z:-30}, 9);                        // 단대부고 정문(동쪽) -> 스파인
+roadSegment({x:0,z:-30}, NODES.iparkHome, 9);                         // 스파인 -> 새 아파트 정문(서쪽), 단대부고와 마주보는 길
+roadSegment(NODES.hanti, NODES.hantiStation, 13);                     // 사거리 -> 한티역
+roadSegment(NODES.hanti, {x:0,z:62}, 9);                              // 사거리 이남 간선도로
+roadSegment({x:0,z:62}, NODES.conran, 8);                             // 콘란샵 앞 도로 (서쪽)
+roadSegment({x:0,z:62}, NODES.lotte, 8);                              // 롯데백화점 앞 도로 (동쪽)
+roadSegment({x:0,z:62}, NODES.southEnd, 8);                           // 도로가 계속 이어지는 남쪽 구간
+// v7: 단대부고 정문 안쪽(교내)에는 도로를 두지 않음 -- 차가 다니면 안 되는 구역
+
+buildRoads();   // 도로 정의가 모두 끝난 뒤에 한꺼번에 그려야 교차로 처리가 됨
+
+// 횡단보도(파란 사다리형 표시, 줄무늬 장축이 도로/이동 방향과 평행) -- 실제로 교차로가 있는 방향에만 배치
+function crosswalk(x, z, horizontal, roadW){
+  roadW = roadW || 13;
+  var g = group();
+  var stripeMat = new THREE.MeshBasicMaterial({ color:0x2f6fd3 });
+  var n = 6;
+  for(var i=0;i<n;i++){
+    var t = (i+0.5)/n - 0.5;
+    var stripe;
+    if(horizontal){
+      // 동서 방향 도로: 줄무늬는 이동 방향(x)과 평행하게 길고, 폭 방향(z)으로 나란히 배치
+      stripe = new THREE.Mesh(new THREE.PlaneGeometry(roadW*0.72, 1.1), stripeMat);
+      stripe.position.set(x, 0.045, z + t*roadW*0.95);
+    } else {
+      // 남북 방향 도로: 줄무늬는 이동 방향(z)과 평행하게 길고, 폭 방향(x)으로 나란히 배치
+      stripe = new THREE.Mesh(new THREE.PlaneGeometry(1.1, roadW*0.72), stripeMat);
+      stripe.position.set(x + t*roadW*0.95, 0.045, z);
+    }
+    stripe.rotation.x = -Math.PI/2;
+    g.add(stripe);
+  }
+  g.position.set(0,0,0);
+  world.add(g);
+}
+crosswalk(0, 37, false, 9);   // 사거리 북쪽 진입로 (스파인)
+crosswalk(12, 45, true, 13);   // 사거리 동쪽(한티역) 진입로
+
+/* ============================================================
+   5. (v5: 양재천 구간 삭제 -- 사용자 약도에 없어 지도에서 제거)
+============================================================ */
+
+/* ============================================================
+   6. 랜드마크: 한티역 / 도곡역 (지하철역)
+============================================================ */
+function makeStation(name, lineColor, hasHyperbolaTower){
+  var g = group();
+  var base = box(11, 0.6, 8, 0xcfd3d8); base.position.y=0.3; g.add(base);
+  var body = box(9,3.6,6, 0xf4f1ea); body.position.y=2.1; g.add(body);
+  var roof = box(10.4,0.5,7,0x2f5fa8); roof.position.y=4.1; g.add(roof);
+  var sign = box(2.2,2.2,0.3, lineColor); sign.position.set(0,3.0,3.4); g.add(sign);
+  var label = makeLabelSprite(name, {bg:'rgba(20,40,90,0.85)', color:'#ffffff'});
+  label.position.set(0, 7.3, 0);
+  g.add(label);
+  var mLabel = makeLabelSprite('M', {fontSize:30, bg: 'rgba(255,255,255,0.95)', color:'#215fbd'});
+  mLabel.scale.multiplyScalar(0.55);
+  mLabel.position.set(0,3.0,3.6);
+  g.add(mLabel);
+  [[-7,-4],[7,4]].forEach(function(p){
+    g.add(makeStreetLamp(p[0], p[1]));
+  });
+  if(hasHyperbolaTower){
+    var tower = makeHyperboloid(1.5, 3.0, 7.5, 0xb9c2cc, {metalness:0.55, roughness:0.35});
+    tower.position.set(7.5, 3.75, -5);
+    g.add(tower);
+    var glow = makeGlowRing(0xffd166); glow.position.set(7.5,0.05,-5); glow.userData.pulse=true;
+    g.add(glow);
+    registerConic({
+      id:'hyperbola_tower',
+      type:'쌍곡선',
+      name: name + ' 냉각식 환기탑',
+      eq: frac('x²','a²') + '  −  ' + frac('y²','b²') + '  =  1',
+      desc: '역 옆의 환기탑은 위아래로 좁아졌다가 다시 넓어지는 곡면이에요. 이 곡면을 세로로 잘라보면, 두 초점까지 거리의 "차"가 일정한 점들의 자취인 쌍곡선이 나타납니다. 실제 발전소 냉각탑도 이런 쌍곡면(회전 쌍곡면) 구조로 만들어 강도는 높이고 재료는 줄여요.',
+      points: 120,
+      mesh: tower
+    });
+  }
+  return g;
+}
+// 가로등. v8에서 도로 양쪽에 수십 개가 놓이므로 PointLight 대신 발광 재질 + 글로우 스프라이트 +
+// 노면 광원 원반으로 표현한다(실시간 광원을 수십 개 켜면 WebGL 광원 한도를 넘고 프레임이 무너짐).
+function makeStreetLamp(x,z, hyperbola, faceDir){
+  var g = group();
+  var pole = cyl(0.12,0.16,4.6,8,0x3a3a3a); pole.position.y=2.3; g.add(pole);
+  // 도로 쪽으로 뻗은 팔
+  var arm = cyl(0.08,0.08,1.5,6,0x3a3a3a);
+  arm.rotation.z = Math.PI/2; arm.position.set(0.75,4.6,0); g.add(arm);
+  var lampMesh;
+  if(hyperbola){
+    lampMesh = makeHyperboloid(0.55, 0.5, 1.1, 0xffe6a8, {metalness:0.3, roughness:0.3, emissive:0xffcf6a, emissiveIntensity:0});
+  } else {
+    lampMesh = cyl(0.4,0.55,0.9,10,0xffe6a8, {metalness:0.2, emissive:0xffcf6a, emissiveIntensity:0});
+  }
+  lampMesh.position.set(hyperbola?0:1.45, 4.55, 0); g.add(lampMesh);
+  var glowSp = new THREE.Sprite(new THREE.SpriteMaterial({ color:0xffe6a0, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending }));
+  glowSp.scale.set(2.6,2.6,2.6); glowSp.position.set(lampMesh.position.x,4.5,0); g.add(glowSp);
+  var pool = new THREE.Mesh(new THREE.CircleGeometry(3.6,20), new THREE.MeshBasicMaterial({ color:0xffdf9e, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending }));
+  pool.rotation.x = -Math.PI/2; pool.position.set(lampMesh.position.x, 0.06, 0); g.add(pool);
+  g.position.set(x,0,z);
+  if(faceDir !== undefined) g.rotation.y = faceDir;
+  g.userData.lampMesh = lampMesh;
+  NIGHT_LAMPS.push({ glow:glowSp, mesh:lampMesh, pool:pool });
+  return g;
+}
+// 도로를 따라 양쪽 인도 위에 일정한 간격으로 가로등을 세운다 (교차로 부근은 건너뜀).
+var LAMP_SKIP_POINTS = [];   // 이미 따로 세워둔 가로등(도곡역 쌍곡선 갓 등) 근처는 중복 배치 안 함
+function placeRoadLamps(spacing){
+  spacing = spacing || 22;
+  ROAD_DEFS.forEach(function(def){
+    var rx = -def.fz, rz = def.fx;
+    var n = Math.floor(def.len/spacing);
+    if(n < 1) return;
+    var step = def.len/(n+1);
+    for(var i=1;i<=n;i++){
+      var t = i*step - def.len/2;
+      [-1,1].forEach(function(side){
+        var off = side*(def.width/2 + 1.3);
+        var x = def.cx + def.fx*t + rx*off;
+        var z = def.cz + def.fz*t + rz*off;
+        if(blockedByOther(def, x, z, 3.4, 3.0)) return;      // 교차로 안에는 세우지 않음
+        for(var k=0;k<LAMP_SKIP_POINTS.length;k++){
+          if(Math.hypot(x-LAMP_SKIP_POINTS[k].x, z-LAMP_SKIP_POINTS[k].z) < 9) return;
+        }
+        // 등이 도로 쪽(안쪽)을 향하도록 회전
+        var face = Math.atan2(-rx*side, -rz*side);
+        world.add(makeStreetLamp(x, z, false, face));
+      });
+    }
+  });
+}
+
+var hantiStation = makeStation('한티역', 0xffd400, false);
+hantiStation.position.set(NODES.hantiStation.x, 0, NODES.hantiStation.z-11);
+world.add(hantiStation);
+
+var dogokStation = makeStation('도곡역', 0x0b8f5a, false);
+dogokStation.position.set(NODES.dogok.x-11, 0, NODES.dogok.z);
+world.add(dogokStation);
+// 도곡역 가로등을 쌍곡선 갓으로 교체하여 이차곡선으로 등록
+(function(){
+  var lx = NODES.dogok.x-11, lz = NODES.dogok.z - 5.8;   // 맨 위 도로(폭 9)의 북쪽 인도 위
+  LAMP_SKIP_POINTS.push({x:lx, z:lz});
+  var lamp = makeStreetLamp(lx, lz, true);
+  world.add(lamp);
+  var glow = makeGlowRing(0xffd166); glow.position.set(lx, 0.05, lz); glow.userData.pulse = true;
+  world.add(glow);
+  registerConic({
+    id:'hyperbola_lamp',
+    type:'쌍곡선',
+    name:'도곡역 앞 가로등 갓',
+    eq: frac('x²','a²') + '  −  ' + frac('y²','b²') + '  =  1',
+    desc:'가로등 갓의 옆모습도 위가 좁고 아래가 넓게 벌어지는 쌍곡선 곡면이에요. 빛을 넓게 퍼뜨리면서도 윗부분은 좁게 만들어 비바람을 막아주는 실용적인 모양이랍니다.',
+    points: 90,
+    mesh: lamp
+  });
+})();
+
+/* ============================================================
+   6b. 태양열 집광장치 (한티역 옆) -- 이 도시의 전력원
+   포물면 반사판이 햇빛(평행광)을 초점 한 곳에 모아 흡수기를 데운다.
+   흡수기는 꼭짓점에서 높이 H인 탑 위에 고정돼 있으므로, 반사판의 초점거리 p를
+   H에 정확히 맞춰야 빛이 흡수기 위 한 점에 모이고 집광 효율이 최대가 된다.
+   p가 어긋나면 빛이 흡수기 주변으로 퍼져(스팟이 커져) 효율이 떨어지고,
+   그만큼 밤에 도시의 가로등·아파트 불빛이 어두워진다.
+============================================================ */
+var SOLAR = { x:58, z:56, R:7, H:6.0, absorb:3.0, p:8.0, eff:0 };
+function solarEfficiency(p){
+  var depth = (SOLAR.R*SOLAR.R)/(4*p);        // 반사판 깊이
+  var denom = p - depth;                       // 테두리에서 초점을 지나 흡수기까지 가는 광선의 기울기 분모
+  var spot;
+  if(Math.abs(denom) < 1e-4) spot = 999;
+  else spot = Math.abs(SOLAR.R*(p - SOLAR.H)/denom);   // 흡수기 높이에서의 빛 반경
+  return 1/(1 + (spot/SOLAR.absorb)*(spot/SOLAR.absorb));
+}
+var solarDish = null, solarHotSpot = null, solarLight = null, solarFocusMark = null;
+(function(){
+  var g = group();
+  // 기둥 + 회전 받침
+  var base = cyl(3.2,3.8,0.8,20,0x8d949e); base.position.y=0.4; g.add(base);
+  var pedestal = cyl(0.8,1.0,2.2,12,0x6f7681); pedestal.position.y=1.7; g.add(pedestal);
+  // 포물면 반사판 (하늘을 향해 열림)
+  solarDish = makeParabolicDish(SOLAR.R, (SOLAR.R*SOLAR.R)/(4*SOLAR.p), 0xdfe6ee, {metalness:0.95, roughness:0.05});
+  solarDish.position.y = 2.8;
+  g.add(solarDish);
+  // 흡수기 탑 (꼭짓점에서 높이 H) + 지지대 3개
+  var absorber = cyl(0.85,0.85,1.7,14,0x2b2f36, {emissive:0xff9d3a, emissiveIntensity:0.4});
+  absorber.position.y = 2.8 + SOLAR.H;
+  g.add(absorber);
+  solarHotSpot = absorber;
+  for(var i=0;i<3;i++){
+    var a = i/3*Math.PI*2;
+    var strut = cyl(0.09,0.09,SOLAR.H+1.2,6,0x9aa3ad);
+    strut.position.set(Math.cos(a)*SOLAR.R*0.42, 2.8+SOLAR.H*0.5, Math.sin(a)*SOLAR.R*0.42);
+    strut.rotation.z = Math.atan2(Math.cos(a)*SOLAR.R*0.42, SOLAR.H*0.55)*0.55;
+    g.add(strut);
+  }
+  // 모인 빛(핫스팟) 표시 -- 효율이 높을수록 밝고 작게 빛남
+  solarLight = new THREE.PointLight(0xffb35a, 0.5, 26, 2);
+  solarLight.position.y = 2.8 + SOLAR.H;
+  g.add(solarLight);
+  var hot = new THREE.Sprite(new THREE.SpriteMaterial({ color:0xffd08a, transparent:true, opacity:0.6, depthWrite:false, blending:THREE.AdditiveBlending }));
+  hot.scale.set(3,3,3); hot.position.y = 2.8 + SOLAR.H;
+  g.add(hot);
+  solarFocusMark = hot;
+  var label = makeLabelSprite('태양열 집광장치', {bg:'rgba(150,90,10,0.85)'});
+  label.position.set(0, 2.8+SOLAR.H+4.5, 0); g.add(label);
+  var glow = makeGlowRing(0xffd166); glow.position.set(0,0.05,0); glow.userData.pulse = true; g.add(glow);
+  g.position.set(SOLAR.x, 0, SOLAR.z);
+  world.add(g);
+
+  registerConic({
+    id:'parabola_solar',
+    type:'포물선',
+    name:'한티역 태양열 집광장치',
+    eq:'y  =  ' + frac('x²','4p') + '   (p = 초점거리)',
+    desc:'이 동네의 전기는 전부 이 태양열 집광장치에서 나와요. 반사판이 포물면이라, 하늘에서 나란히(평행하게) 내려오는 햇빛이 반사되면 전부 초점 한 점에 모입니다 — 포물선의 반사 성질이죠. 그런데 열을 받아내는 흡수기는 탑 위 고정된 높이에 있어요. 그래서 반사판의 초점거리 p를 흡수기 높이에 정확히 맞춰야 빛이 한 점에 모이고, 어긋나면 빛이 넓게 퍼져 열이 흩어져요. 슬라이더로 p를 바꿔보면서 집광 효율이 최대가 되는 지점을 찾아보세요. 효율이 곧 이 도시의 전력이라, 밤이 되면 가로등과 아파트 불빛의 밝기로 결과가 바로 나타납니다!',
+    points: 130,
+    mesh: solarDish
+  });
+  var solarConic = conics[conics.length-1];
+  solarConic.shapeParam = { kind:'parabola', value:SOLAR.p, min:4.5, max:10.0, step:0.1,
+    apply: function(p){ applySolar(p); } };
+})();
+function applySolar(p){
+  SOLAR.p = p;
+  SOLAR.eff = solarEfficiency(p);
+  cityPower = 0.25 + 0.75*SOLAR.eff;
+  if(solarDish) regenParabolicDish(solarDish, SOLAR.R, p);
+  if(solarHotSpot) solarHotSpot.material.emissiveIntensity = 0.25 + SOLAR.eff*2.2;
+  if(solarLight) solarLight.intensity = 0.15 + SOLAR.eff*2.4;
+  if(solarFocusMark){
+    // 효율이 낮을수록 빛이 넓게 흩어진 것처럼 크고 옅게
+    var sc = 1.6 + (1-SOLAR.eff)*7.0;
+    solarFocusMark.scale.set(sc,sc,sc);
+    solarFocusMark.material.opacity = 0.12 + SOLAR.eff*0.6;
+  }
+  updateSolarHint();
+}
+function updateSolarHint(){
+  var el = document.getElementById('solar-readout');
+  if(el){
+    el.textContent = '☀️ 집광 효율 ' + Math.round(SOLAR.eff*100) + '%  →  🏙️ 도시 전력 ' + Math.round(cityPower*100) + '%';
+    el.style.opacity = (0.45 + SOLAR.eff*0.55).toFixed(2);
+  }
+}
+applySolar(SOLAR.p);
+
+/* ============================================================
+   7. 롯데백화점 & 콘란샵
+============================================================ */
+(function(){
+  var g = group();
+  var winTex = windowTexture(6,10,'#bfe3ff','#3a4658');
+  var mainBody = box(24, 20, 15, 0xe7e2d3, {map:null});
+  mainBody.position.y = 10; g.add(mainBody);
+  var glassFacade = new THREE.Mesh(new THREE.PlaneGeometry(22,17), new THREE.MeshStandardMaterial({map:winTex, roughness:0.3, metalness:0.4}));
+  glassFacade.position.set(0, 10, 7.55); g.add(glassFacade);
+  var podium = box(28,3,18,0xd8d2c0); podium.position.y=1.5; g.add(podium);
+  var label = makeLabelSprite('롯데백화점 강남점', {bg:'rgba(120,20,20,0.85)'});
+  label.position.set(0, 22.5, 0); g.add(label);
+
+  // 타원형 유리 돔 (지붕)
+  var dome = makeEllipseRing(4.2, 2.6, 0.6, 0xbfe3ff, {metalness:0.6, roughness:0.15, transparent:true, opacity:0.9});
+  dome.rotation.x = Math.PI/2;
+  dome.position.set(-6, 20.6, 0);
+  g.add(dome);
+  var domeCap = new THREE.Mesh(new THREE.SphereGeometry(4.2,20,12,0,Math.PI*2,0,Math.PI/2), new THREE.MeshStandardMaterial({color:0xdff3ff, transparent:true, opacity:0.35, metalness:0.6, roughness:0.1}));
+  domeCap.scale.set(1,0.55,0.62);
+  domeCap.position.set(-6, 20.6, 0);
+  g.add(domeCap);
+  var domeGlow = makeGlowRing(0xffd166); domeGlow.position.set(-6, 20.6+4.6, 0); domeGlow.rotation.x=Math.PI/2; domeGlow.userData.pulse=true;
+  g.add(domeGlow);
+  registerConic({
+    id:'ellipse_dome',
+    type:'타원',
+    name:'롯데백화점 타원 유리돔',
+    eq: frac('x²','a²') + '  +  ' + frac('y²','b²') + '  =  1',
+    desc:'백화점 로비 위 유리 돔은 원을 한쪽으로 살짝 늘린 타원 모양이에요. 타원은 "두 초점까지 거리의 합이 항상 일정한 점들의 자취"로 정의돼요. 건축에서는 넓은 공간에 기둥 없이 아름다운 채광창을 만들 때 타원 구조를 즐겨 사용합니다.',
+    points: 110,
+    mesh: dome
+  });
+
+  // 분수대 (포물선 물줄기)
+  var fountainBase = cyl(3.4,3.6,0.5,24,0x9aa3ad); fountainBase.position.set(0,0.25,12); g.add(fountainBase);
+  var water = new THREE.Mesh(new THREE.CylinderGeometry(3.0,3.0,0.15,24), new THREE.MeshStandardMaterial({color:0x6fd3ff, transparent:true, opacity:0.6, metalness:0.6, roughness:0.1}));
+  water.position.set(0,0.55,12); g.add(water);
+  var jets = group();
+  for(var i=0;i<6;i++){
+    var ang = i/6*Math.PI*2;
+    var p0 = new THREE.Vector3(Math.cos(ang)*0.3, 0.55, 12+Math.sin(ang)*0.3);
+    var p1 = new THREE.Vector3(Math.cos(ang)*2.6, 0.55, 12+Math.sin(ang)*2.6);
+    var jet = makeParabolaCurveTube(p0,p1, 2.6, 0.09, 0x9fe8ff, {emissive:0x2ea8ff, emissiveIntensity:0.5});
+    jets.add(jet);
+  }
+  g.add(jets);
+  var fGlow = makeGlowRing(0xffd166); fGlow.position.set(0,0.05,12); fGlow.userData.pulse=true;
+  g.add(fGlow);
+  registerConic({
+    id:'parabola_fountain',
+    type:'포물선',
+    name:'롯데백화점 앞 분수대',
+    eq:'y  =  h  −  k(x − c)²',
+    desc:'분수에서 뿜어져 나온 물줄기가 그리는 곡선이 바로 포물선이에요! 중력의 영향으로 물체(또는 물방울)가 비스듬히 던져지면 항상 포물선 궤적을 그립니다. 야구공을 던질 때, 농구공을 슛할 때도 똑같은 포물선 운동이 나타나요.',
+    points: 100,
+    mesh: jets
+  });
+  var fountainConic = conics[conics.length-1];
+  fountainConic.shapeParam = { kind:'parabola', value:1.1, min:0.3, max:3.0, step:0.05,
+    apply: function(p){ regenFountainJets(jets, p); } };
+
+  g.position.set(NODES.lotte.x, 0, NODES.lotte.z+20);
+  g.rotation.y = Math.PI;   // v8: 180도 회전 -- 정면(유리 파사드)이 사거리 쪽(북쪽)을 바라보게 함
+  world.add(g);
+})();
+
+// 콘란샵 (구 대치미술관 건물을 그대로 재사용 -- 사거리에서 볼 때 서쪽, 롯데백화점과 나란히)
+// 정문(글래스 파사드) 앞에 서면 안내판을 통해 안으로 들어갈 수 있음 (진입 시 완전한 실내 장면으로 전환)
+var conranEntranceOutside = { x: NODES.conran.x, z: NODES.conran.z+8 };   // v8: 북향 정면 앞
+(function(){
+  var g = group();
+  var winTex = windowTexture(5,8,'#dff0ff','#41506a');
+  var body = box(18,14,13,0xd7d0c2); body.position.y=7; g.add(body);
+  var glassFacade = new THREE.Mesh(new THREE.PlaneGeometry(16,11), new THREE.MeshStandardMaterial({map:winTex, roughness:0.35, metalness:0.3}));
+  glassFacade.position.set(0,7,6.55); g.add(glassFacade);
+  var podium = box(20,2,15,0xc7c0b0); podium.position.y=1; g.add(podium);
+  var awning = box(9.6,0.5,2.4,0x1e3a8a);
+  awning.position.set(0,5.4,7.2); g.add(awning);
+  var sign = makeLabelSprite('conran shop', {bg:'rgba(20,20,20,0.85)', fontSize:15});
+  sign.position.set(0,6.1,7.3); g.add(sign);
+  var label = makeLabelSprite('콘란샵', {bg:'rgba(30,60,110,0.85)'});
+  label.position.set(0,15.5,0); g.add(label);
+  g.position.set(NODES.conran.x, 0, NODES.conran.z+16);
+  g.rotation.y = Math.PI;   // v8: 180도 회전 -- 정면이 사거리 쪽(북쪽)을 바라보게 함
+  world.add(g);
+})();
+
+/* ============================================================
+   8. 단대부고
+============================================================ */
+var schoolTrigger = { x: NODES.schoolGate.x, z: NODES.schoolGate.z, radius:5.5, armed:true, confirmed:false };
+// 운동장을 도는 선수 & 파라볼라 마이크의 조준 방향(둘 다 이 섹션의 IIFE 안에서 채워짐, 메인 루프에서 사용)
+var SCHOOL_RUNNER = null; // {mesh, effectGroup, angle, speed, cx, cz, a, b}
+var MIC_AIM = { angle: 0, worldPos: null };
+// v6: 정문을 북쪽(-z)에서 동쪽(+x)으로 돌리기 위해 학교 그룹 전체를 -90도 회전(내부 좌표는 그대로 두고
+// 그룹 회전만으로 "정문이 동쪽을 바라보고 건물이 서쪽으로 뻗는" 배치를 만듦). 로컬(x,z) -> 월드(gate+(-z,x)).
+var SCHOOL_ROT = -Math.PI/2;
+var micAlignment = 0; // 0..1, 마이크가 선수를 얼마나 잘 조준하고 있는지 (매 프레임 갱신)
+(function(){
+  var g = group(); // local origin = 정문
+  var winTex = windowTexture(8,6,'#ffe9b0','#5a4a36');
+  var mainBldg = box(26,12,9,0xb2503f); mainBldg.position.set(0,6,20); g.add(mainBldg);
+  var glassFacade = new THREE.Mesh(new THREE.PlaneGeometry(24,10.5), new THREE.MeshStandardMaterial({map:winTex, roughness:0.6}));
+  glassFacade.position.set(0,6,24.55); g.add(glassFacade);
+  // 벽돌 건물의 흰 줄무늬 밴드 (LEGO 참고사진 스타일)
+  [2.2, 6.6, 11.0].forEach(function(yy){
+    var band = box(26.1,0.35,9.1,0xf4f0e6);
+    band.position.set(0,yy,20); g.add(band);
+  });
+  var label = makeLabelSprite('단대부고', {bg:'rgba(30,90,40,0.85)'});
+  label.position.set(0,20, 20); g.add(label);
+
+  // 정문 아치 (원) + 벽돌 기둥
+  var baseR = 3.4;
+  var gate = makeArch(baseR, 0.35, 0x222222);
+  gate.position.set(0, baseR, 0);
+  g.add(gate);
+  var pillarL = box(0.9,baseR,0.9,0x8a3a2a); pillarL.position.set(-baseR,baseR/2,0); g.add(pillarL);
+  var pillarR = box(0.9,baseR,0.9,0x8a3a2a); pillarR.position.set(baseR,baseR/2,0); g.add(pillarR);
+  var pillarCapL = box(1.1,0.3,1.1,0xf4f0e6); pillarCapL.position.set(-baseR,baseR+0.15,0); g.add(pillarCapL);
+  var pillarCapR = box(1.1,0.3,1.1,0xf4f0e6); pillarCapR.position.set(baseR,baseR+0.15,0); g.add(pillarCapR);
+
+  // 검은 철제 격자 대문 두 짝 + 교표 엠블럼 (LEGO 모형 참고)
+  var gateTex = ironGateTexture();
+  var emblemTex = schoolEmblemTexture();
+  [-1,1].forEach(function(side){
+    var leaf = new THREE.Mesh(new THREE.PlaneGeometry(baseR-0.3, 2.6), new THREE.MeshStandardMaterial({map:gateTex, transparent:true, roughness:0.5, metalness:0.6, side:THREE.DoubleSide}));
+    leaf.position.set(side*(baseR/2-0.05), 1.35, 0.05);
+    leaf.rotation.y = side*0.06;
+    g.add(leaf);
+    // 안쪽(교내 방향) 교표
+    var emblem = new THREE.Mesh(new THREE.CircleGeometry(0.42,24), new THREE.MeshStandardMaterial({map:emblemTex, roughness:0.5}));
+    emblem.position.set(side*(baseR/2-0.05), 1.5, 0.14);
+    g.add(emblem);
+    // v8: 바깥쪽(정문 앞)에도 같은 교표를 붙임 -- 밖에서 학교로 다가올 때 마크가 보이도록
+    var emblemF = new THREE.Mesh(new THREE.CircleGeometry(0.42,24), new THREE.MeshStandardMaterial({map:emblemTex, roughness:0.5}));
+    emblemF.position.set(side*(baseR/2-0.05), 1.5, -0.14);
+    emblemF.rotation.y = Math.PI;
+    g.add(emblemF);
+  });
+  // 정문 아치 위 중앙에도 큰 교표 하나 (양면)
+  [[0.18, 0], [-0.18, Math.PI]].forEach(function(f){
+    var crest = new THREE.Mesh(new THREE.CircleGeometry(0.85,28), new THREE.MeshStandardMaterial({map:emblemTex, roughness:0.5}));
+    crest.position.set(0, baseR + 1.15, f[0]);
+    crest.rotation.y = f[1];
+    g.add(crest);
+  });
+
+  // ---- 옥상 천문대: 카세그레인식 반사망원경 (주경 = 포물면, 부경 = 쌍곡면) ----
+  // 포물면 주경이 별빛(평행광)을 자기 초점 F에 모으고, 그 앞에 놓인 볼록 쌍곡면 부경의
+  // "한 초점"을 바로 그 F에 정확히 겹쳐두면, F를 향해 오던 빛이 부경에 반사되어
+  // 쌍곡선의 "다른 초점"(주경 뒤 접안부)에 다시 모인다. 부경 위치를 맞춰야 상이 선명해진다.
+  (function(){
+    var tele = group();
+    var pier = cyl(0.5,0.7,1.4,12,0x4a515c); pier.position.y=0.7; tele.add(pier);
+    var fork = group();
+    // 경통 (위쪽이 열린 원통)
+    var tube = new THREE.Mesh(new THREE.CylinderGeometry(1.35,1.35,4.6,24,1,true),
+      new THREE.MeshStandardMaterial({color:0x27303e, metalness:0.5, roughness:0.4, side:THREE.DoubleSide}));
+    tube.position.y = 2.3; fork.add(tube);
+    var tubeRing = new THREE.Mesh(new THREE.TorusGeometry(1.35,0.09,8,24), new THREE.MeshStandardMaterial({color:0xc9d2dc, metalness:0.7, roughness:0.3}));
+    tubeRing.rotation.x = Math.PI/2; tubeRing.position.y = 4.6; fork.add(tubeRing);
+    // 주경 (포물면) -- 경통 바닥, 위를 향해 열림
+    var primary = makeParabolicDish(TELE.R, (TELE.R*TELE.R)/(4*TELE.fp), 0xeef3f8, {metalness:0.98, roughness:0.03});
+    primary.position.y = 0.12; fork.add(primary);
+    // 부경 (볼록 쌍곡면) -- 아래를 향해 볼록
+    var secondary = makeHyperbolicSecondary(0.5, TELE.a, TELE.b, 0xdfe7f0);
+    secondary.position.y = TELE.d + 0.12; fork.add(secondary);
+    // 부경 지지대(스파이더) 3개
+    for(var si=0; si<3; si++){
+      var sa = si/3*Math.PI*2;
+      var spider = cyl(0.035,0.035,1.35,5,0xaab3bd);
+      spider.rotation.z = Math.PI/2;
+      spider.position.set(Math.cos(sa)*0.68, TELE.d+0.12, Math.sin(sa)*0.68);
+      spider.rotation.y = -sa;
+      fork.add(spider);
+    }
+    // 주경의 초점 F (노란 점) / 부경의 가까운 초점 (파란 점) -- 두 점이 겹쳐야 상이 맺힘
+    var fMark = new THREE.Mesh(new THREE.SphereGeometry(0.085,10,8), new THREE.MeshBasicMaterial({color:0xffd166}));
+    fMark.position.y = TELE.fp + 0.12; fork.add(fMark);
+    var sMark = new THREE.Mesh(new THREE.SphereGeometry(0.075,10,8), new THREE.MeshBasicMaterial({color:0x6fd3ff}));
+    sMark.position.y = TELE.d + TELE.s + 0.12; fork.add(sMark);
+    // 접안부 (주경 뒤로 빠지는 최종 초점)
+    var eyepiece = cyl(0.22,0.26,0.8,10,0x1c2029); eyepiece.position.y = -0.5; fork.add(eyepiece);
+
+    fork.rotation.x = -0.55;   // 하늘을 향해 살짝 눕힘
+    fork.position.y = 1.4;
+    tele.add(fork);
+    var teleLabel = makeLabelSprite('천체관측 망원경', {bg:'rgba(30,40,90,0.85)', fontSize:15});
+    teleLabel.position.set(0, 7.2, 0); tele.add(teleLabel);
+    var teleGlow = makeGlowRing(0xffd166); teleGlow.position.set(0,0.06,0); teleGlow.userData.pulse = true; tele.add(teleGlow);
+    tele.position.set(9, 12.25, 20);   // 본관 옥상
+    g.add(tele);
+
+    TELE.secondary = secondary; TELE.primary = primary; TELE.fMark = fMark; TELE.sMark = sMark;
+    registerConic({
+      id:'hyperbola_telescope',
+      type:'쌍곡선',
+      name:'단대부고 옥상 반사망원경',
+      eq: frac('y²','a²') + '  −  ' + frac('x²','b²') + '  =  1',
+      desc:'옥상 천문대의 카세그레인식 반사망원경이에요. 아래쪽 큰 거울(주경)은 포물면이라 멀리서 나란히 오는 별빛을 자기 초점 한 점에 모읍니다. 그 앞을 가로막고 있는 작은 볼록거울(부경)이 쌍곡면인데, 쌍곡선의 두 초점 중 하나를 주경의 초점에 정확히 겹쳐 놓으면 그 초점을 향해 가던 빛이 부경에 반사되어 나머지 한 초점에 다시 모여요. 그 자리에 접안부를 두면 선명한 상을 볼 수 있죠. 슬라이더로 부경을 움직여 노란 점(주경의 초점)과 파란 점(쌍곡선의 초점)을 정확히 겹쳐보세요. 초점이 맞으면 은하수가 또렷하게 보입니다!',
+      points: 140,
+      mesh: tube
+    });
+    var teleConic = conics[conics.length-1];
+    teleConic.isTelescope = true;
+    teleConic.shapeParam = { kind:'telescope', value:TELE.d, min:1.2, max:3.2, step:0.02,
+      apply: function(d){ applyTelescope(d); } };
+  })();
+
+  var gateGlow = makeGlowRing(0xffd166); gateGlow.position.set(0,0.05,0); gateGlow.userData.pulse = true;
+  g.add(gateGlow);
+  registerConic({
+    id:'circle_gate',
+    type:'원',
+    name:'단대부고 정문 아치',
+    eq:'x²  +  y²  =  r²',
+    desc:'정문의 둥근 아치는 원의 일부(반원)예요. 원은 "한 점(중심)까지 거리가 항상 일정한 점들의 자취"로, 이차곡선 중에서도 가장 기본이 되는 도형이에요.',
+    points: 80,
+    mesh: gate
+  });
+  var gateConic = conics[conics.length-1];
+  gateConic.shapeParam = { kind:'circle', value:baseR, min:1.6, max:6.5, step:0.1,
+    apply: function(r){ regenArch(gate, pillarL, pillarR, baseR, r);
+      pillarCapL.position.x = -r; pillarCapR.position.x = r;
+      pillarCapL.position.y = r*(pillarL.scale.y) + 0.15; pillarCapR.position.y = pillarCapL.position.y;
+    } };
+
+  // 운동장 (스타디움 형태 - 시각 요소)
+  var field = new THREE.Mesh(new THREE.CylinderGeometry(11,11,0.15,32), new THREE.MeshStandardMaterial({color:0x3f8f4a, roughness:1}));
+  field.scale.set(1.7,1,1);
+  field.position.set(0,0.08,40);
+  field.receiveShadow = true;
+  g.add(field);
+  var track = new THREE.Mesh(new THREE.RingGeometry(9.6,11.2,40), new THREE.MeshStandardMaterial({color:0xb1552f, roughness:1, side:THREE.DoubleSide}));
+  track.rotation.x=-Math.PI/2; track.scale.set(1.7,1,1); track.position.set(0,0.1,40);
+  g.add(track);
+
+  // 교내 작은 매점 (LEGO 참고사진 - 파란 차양)
+  var shop = group();
+  var shopBody = box(4.5,3.2,3, 0xb2503f); shopBody.position.y=1.6; shop.add(shopBody);
+  var shopAwning = box(4.8,0.3,1.3,0x1e3a8a); shopAwning.position.set(0,3.0,1.7); shop.add(shopAwning);
+  var shopGlass = new THREE.Mesh(new THREE.PlaneGeometry(3.6,1.8), new THREE.MeshStandardMaterial({color:0xbfe3ff, transparent:true, opacity:0.5}));
+  shopGlass.position.set(0,1.5,1.55); shop.add(shopGlass);
+  shop.position.set(13,0,14);
+  g.add(shop);
+
+  // 방송부의 파라볼라 마이크 -- 장거리 수음(먼 곳의 소리를 모아 담기) 컨셉으로,
+  // 운동장 트랙을 도는 선수의 목소리를 떨어진 곳에서 마이크로 잡아내는 장면
+  var broadcastBooth = group();
+  broadcastBooth.position.set(-13,0,36);
+  // 마이크 리그(회전 피벗) : 붐 + 파라볼라 반사판 + 캡슐
+  var micPivot = new THREE.Vector3(1.1,1.9,0.1);
+  var micRig = group();
+  micRig.position.copy(micPivot);
+  var boom = cyl(0.05,0.05,2.6,6,0x333333);
+  boom.rotation.z = Math.PI/2.3;
+  boom.position.set(0,0,0);
+  micRig.add(boom);
+  var dish = makeParabolicDish(0.55, 0.65, 0xe9e9e9, {metalness:0.35, roughness:0.3});
+  dish.rotation.z = -Math.PI/2 + 0.25;
+  dish.position.set(1.0,0.45,0);
+  micRig.add(dish);
+  var capMesh = cyl(0.08,0.08,0.35,8,0x222222);
+  capMesh.rotation.z = -Math.PI/2+0.25; capMesh.position.set(1.0,0.45,0);
+  micRig.add(capMesh);
+  broadcastBooth.add(micRig);
+  var micGlow = makeGlowRing(0xffd166); micGlow.position.set(2.1,0.05,0.1); micGlow.userData.pulse=true;
+  broadcastBooth.add(micGlow);
+  g.add(broadcastBooth);
+  registerConic({
+    id:'parabola_mic',
+    type:'포물선',
+    name:'단대부고 방송부의 파라볼라 마이크',
+    eq:'y  =  a x²   (초점 F, 준선 l)',
+    desc:'파라볼라 마이크는 장거리 수음(멀리 있는 소리를 모아 담는 것)이 특기예요! 반사판은 포물선을 축 둘레로 회전시킨 모양(회전포물면)이고, 포물선은 "초점과 준선(directrix)까지의 거리가 같은 점들의 자취"로 정의돼요. 이 성질 덕분에 멀리 트랙을 도는 선수의 목소리도 모두 초점 한 점으로 모여, 작은 소리도 또렷하게 잡아낼 수 있어요. 슬라이더로 마이크를 돌려 선수 쪽을 정확히 조준할수록 소리(그리고 선수 옆 말풍선 이펙트)가 커지는 걸 확인해보세요.',
+    points: 150,
+    mesh: broadcastBooth
+  });
+  var micConic = conics[conics.length-1];
+  micConic.micRig = micRig;
+  micConic.isMic = true;
+  (function(){
+    var lx = broadcastBooth.position.x + micPivot.x, lz = broadcastBooth.position.z + micPivot.z;
+    MIC_AIM.worldPos = { x: NODES.schoolGate.x - lz, z: NODES.schoolGate.z + lx }; // 그룹 회전(-90도) 반영
+  })();
+
+  // 운동장 트랙을 뱅뱅 도는 선수 + "말하고 있다" 이펙트(말풍선 형태의 동심원)
+  var runner = makeSimplePerson(0xd3372f, 0xffe0bd);
+  var trackCx = 0, trackCz = 40, trackA = 17.3, trackB = 10.2;
+  runner.position.set(trackA, 0, trackCz);
+  g.add(runner);
+  var speakFx = group();
+  [[0.14,0.2],[0.28,0.36],[0.44,0.53]].forEach(function(r){
+    var ringMat = new THREE.MeshBasicMaterial({ color:0x9fe8ff, transparent:true, opacity:0.3, side:THREE.DoubleSide, depthWrite:false });
+    var ring = new THREE.Mesh(new THREE.RingGeometry(r[0], r[1], 20), ringMat);
+    speakFx.add(ring);
+  });
+  speakFx.position.set(0, 1.9, 0.3);
+  runner.add(speakFx);
+  MIC_AIM.angle = Math.atan2(trackCx - (broadcastBooth.position.x+micPivot.x), trackCz - (broadcastBooth.position.z+micPivot.z));
+  micRig.rotation.y = 0;
+  SCHOOL_RUNNER = { mesh:runner, effectGroup:speakFx, angle:0, speed:0.4, cx:trackCx, cz:trackCz, a:trackA, b:trackB, baseAngle: MIC_AIM.angle };
+
+  g.position.set(NODES.schoolGate.x, 0, NODES.schoolGate.z);
+  g.rotation.y = SCHOOL_ROT;
+  world.add(g);
+})();
+
+/* ============================================================
+   8b. 담장/울타리 (정문에만 틈이 있는 벽 + 충돌 처리) -- 단대부고, 대치아이파크 공용
+============================================================ */
+// 담장 하나를 짓고 충돌 판정에 쓸 수 있게 만드는 공용 함수. 여러 단지(학교, 아파트)에 재사용.
+function buildPerimeterWall(def, wallColor, capColor){
+  var wallMat = new THREE.MeshStandardMaterial({ color:wallColor||0x8a3a2a, roughness:0.85 });
+  var capMat = new THREE.MeshStandardMaterial({ color:capColor||0xf4f0e6, roughness:0.8 });
+  function wallSeg(x1,z1,x2,z2){
+    var dx=x2-x1, dz=z2-z1, len=Math.hypot(dx,dz);
+    if(len < 0.05) return;
+    var ang = Math.atan2(dx,dz);
+    var wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.3, len), wallMat);
+    wall.position.set((x1+x2)/2, 0.65, (z1+z2)/2);
+    wall.rotation.y = ang;
+    wall.castShadow = true; wall.receiveShadow = true;
+    world.add(wall);
+    var cap = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.16, len), capMat);
+    cap.position.set((x1+x2)/2, 1.38, (z1+z2)/2);
+    cap.rotation.y = ang;
+    world.add(cap);
+  }
+  // v6: 정문이 북(north)쪽 외에 동/서/남쪽에도 있을 수 있도록 gateSide로 일반화 (기본값 north, 기존 동작 그대로)
+  var side = def.gateSide || 'north';
+  if(side==='north'){
+    wallSeg(def.xWest, def.zFront, def.gateXMin, def.zFront);
+    wallSeg(def.gateXMax, def.zFront, def.xEast, def.zFront);
+    wallSeg(def.xWest, def.zBack, def.xEast, def.zBack);
+    wallSeg(def.xWest, def.zFront, def.xWest, def.zBack);
+    wallSeg(def.xEast, def.zFront, def.xEast, def.zBack);
+  } else if(side==='south'){
+    wallSeg(def.xWest, def.zFront, def.xEast, def.zFront);
+    wallSeg(def.xWest, def.zBack, def.gateXMin, def.zBack);
+    wallSeg(def.gateXMax, def.zBack, def.xEast, def.zBack);
+    wallSeg(def.xWest, def.zFront, def.xWest, def.zBack);
+    wallSeg(def.xEast, def.zFront, def.xEast, def.zBack);
+  } else if(side==='east'){
+    wallSeg(def.xWest, def.zFront, def.xEast, def.zFront);
+    wallSeg(def.xWest, def.zBack, def.xEast, def.zBack);
+    wallSeg(def.xWest, def.zFront, def.xWest, def.zBack);
+    wallSeg(def.xEast, def.zFront, def.xEast, def.gateZMin);
+    wallSeg(def.xEast, def.gateZMax, def.xEast, def.zBack);
+  } else if(side==='west'){
+    wallSeg(def.xWest, def.zFront, def.xEast, def.zFront);
+    wallSeg(def.xWest, def.zBack, def.xEast, def.zBack);
+    wallSeg(def.xEast, def.zFront, def.xEast, def.zBack);
+    wallSeg(def.xWest, def.zFront, def.xWest, def.gateZMin);
+    wallSeg(def.xWest, def.gateZMax, def.xWest, def.zBack);
+  }
+}
+// 담장을 통과하지 못하도록, 정문 틈을 제외한 네 변에 미끄러지는 충돌 처리를 적용
+function applyPerimeterCollision(def, oldX, oldZ, newX, newZ){
+  var x = newX, z = newZ;
+  var near = newX > def.xWest-4 && newX < def.xEast+4 && newZ > def.zFront-4 && newZ < def.zBack+4;
+  if(!near) return { x:x, z:z };
+  var side = def.gateSide || 'north';
+
+  // 앞쪽 벽 (북쪽, zFront) -- side==='north'일 때만 정문 틈 있음
+  if((oldZ-def.zFront)*(z-def.zFront) < 0 && x>=def.xWest && x<=def.xEast){
+    var passN = side==='north' && x>=def.gateXMin && x<=def.gateXMax;
+    if(!passN) z = oldZ;
+  }
+  // 뒤쪽 벽 (남쪽, zBack) -- side==='south'일 때만 정문 틈 있음
+  if((oldZ-def.zBack)*(z-def.zBack) < 0 && x>=def.xWest && x<=def.xEast){
+    var passS = side==='south' && x>=def.gateXMin && x<=def.gateXMax;
+    if(!passS) z = oldZ;
+  }
+  // 서쪽 벽 -- side==='west'일 때만 정문 틈 있음
+  if((oldX-def.xWest)*(x-def.xWest) < 0 && z>=def.zFront && z<=def.zBack){
+    var passW = side==='west' && z>=def.gateZMin && z<=def.gateZMax;
+    if(!passW) x = oldX;
+  }
+  // 동쪽 벽 -- side==='east'일 때만 정문 틈 있음
+  if((oldX-def.xEast)*(x-def.xEast) < 0 && z>=def.zFront && z<=def.zBack){
+    var passE = side==='east' && z>=def.gateZMin && z<=def.gateZMax;
+    if(!passE) x = oldX;
+  }
+  return { x:x, z:z };
+}
+
+// v6: 정문을 북쪽 -> 동쪽으로 회전(학교 그룹은 -90도 회전되어 정문이 +x쪽을 향함).
+// 담장 상자도 회전에 맞춰 재계산: 로컬 x폭(±22) -> 월드 z폭, 로컬 z깊이(0~58, 건물이 뻗는 방향) -> 월드 x깊이(서쪽으로).
+var SCHOOL_CAMPUS = {
+  xWest: NODES.schoolGate.x-58, xEast: NODES.schoolGate.x,
+  zFront: NODES.schoolGate.z-22, zBack: NODES.schoolGate.z+22,
+  gateZMin: NODES.schoolGate.z-5, gateZMax: NODES.schoolGate.z+5,
+  gateSide: 'east'
+};
+buildPerimeterWall(SCHOOL_CAMPUS, 0x8a3a2a, 0xf4f0e6);
+
+// 대치아이파크 건물 배치 기준점(정문에서 남쪽으로 16만큼) -- 9번 섹션의 실제 건물 배치와 공유
+var IPARK_BLDG_Z = NODES.iparkGate.z + 16;
+var IPARK_CAMPUS = {
+  // 아파트 동 배치(및 주변 나무)를 여유있게 다 담도록 앞쪽(zFront)을 정문보다 조금 더 북쪽으로 잡음
+  xWest: NODES.iparkGate.x-24, xEast: NODES.iparkGate.x+24,
+  zFront: NODES.iparkGate.z-8, zBack: IPARK_BLDG_Z+26,
+  gateXMin: NODES.iparkGate.x-5, gateXMax: NODES.iparkGate.x+5,
+  gateSide: 'north'
+};
+buildPerimeterWall(IPARK_CAMPUS, 0x9a8264, 0xe8e2d2);
+
+// v6: 대치아이파크 남쪽 빈 땅의 새 아파트(정문이 서쪽 -> 단대부고 정문과 마주봄)
+var NEWAPT_CAMPUS = {
+  xWest: NODES.iparkHome.x, xEast: NODES.iparkHome.x+50,
+  zFront: NODES.iparkHome.z-15, zBack: NODES.iparkHome.z+15,
+  gateZMin: NODES.iparkHome.z-5, gateZMax: NODES.iparkHome.z+5,
+  gateSide: 'west'
+};
+buildPerimeterWall(NEWAPT_CAMPUS, 0x5a6b8a, 0xe0e4ea);
+
+// 여러 단지 담장을 순서대로 적용(근처가 아니면 그냥 통과되므로 체이닝해도 안전)
+function applyCampusWalls(oldX, oldZ, newX, newZ){
+  var r1 = applyPerimeterCollision(SCHOOL_CAMPUS, oldX, oldZ, newX, newZ);
+  var r2 = applyPerimeterCollision(IPARK_CAMPUS, oldX, oldZ, r1.x, r1.z);
+  var r3 = applyPerimeterCollision(NEWAPT_CAMPUS, oldX, oldZ, r2.x, r2.z);
+  return r3;
+}
+
+/* ============================================================
+   9. 래미안대치팰리스 / 대치아이파크 (아파트 단지)
+============================================================ */
+function makeApartmentTower(h, w, d, colorA){
+  var g = group();
+  var winTex = windowTexture(5, Math.round(h/2.2), '#fff1c2', '#37424f');
+  var tower = box(w,h,d, colorA);
+  tower.position.y = h/2; g.add(tower);
+  var facadeF = new THREE.Mesh(new THREE.PlaneGeometry(w-0.4,h-0.6), new THREE.MeshStandardMaterial({map:winTex, roughness:0.75}));
+  facadeF.position.set(0,h/2, d/2+0.05); g.add(facadeF);
+  var facadeB = facadeF.clone(); facadeB.rotation.y = Math.PI; facadeB.position.z = -d/2-0.05; g.add(facadeB);
+  var roof = box(w+0.4,0.5,d+0.4,0x555f66); roof.position.y = h+0.25; g.add(roof);
+  return g;
+}
+
+function makeApartmentComplex(name, labelColor, homeMarker, opts){
+  opts = opts || {};
+  var hs = opts.heightScale || 1; // 건물 높이 배율 (낮출수록 옥상 안테나가 잘 보임)
+  var g = group();
+  var layout = [
+    {x:-14, z:-6, h:24*hs, w:9, d:9},
+    {x:0, z:2, h:30*hs, w:9, d:9},
+    {x:14, z:-8, h:22*hs, w:9, d:9},
+    {x:6, z:-18, h:26*hs, w:8, d:8},
+  ];
+  var colors = [0xdedad0, 0xe8e2d2, 0xd7d2c4, 0xe3ded0];
+  var towers = [];
+  layout.forEach(function(t, i){
+    var tower = makeApartmentTower(t.h, t.w, t.d, colors[i%colors.length]);
+    tower.position.set(t.x, 0, t.z);
+    g.add(tower);
+    towers.push({mesh:tower, h:t.h, x:t.x, z:t.z});
+  });
+  for(var i=0;i<10;i++){
+    var ang = Math.random()*Math.PI*2, rad = 8+Math.random()*14;
+    g.add(makeTree(Math.cos(ang)*rad, Math.sin(ang)*rad));
+  }
+  var label = makeLabelSprite(name, {bg: labelColor});
+  label.position.set(0, layout[1].h+4, 0);
+  g.add(label);
+
+  if(homeMarker){
+    var tallest = towers.reduce(function(p,c){ return c.h>p.h?c:p; }, towers[0]);
+    var dish = makeParabolicDish(1.3, 1.5, 0xe3e3e3, {metalness:0.5, roughness:0.3});
+    dish.rotation.x = -Math.PI/2.6;
+    dish.position.set(tallest.x+1.2, tallest.h+0.6, tallest.z);
+    g.add(dish);
+    var pole = cyl(0.08,0.08,1.0,8,0x555555);
+    pole.position.set(tallest.x+1.2, tallest.h+0.1, tallest.z);
+    g.add(pole);
+    var antGlowBase = makeGlowRing(0xffd166);
+    antGlowBase.position.set(tallest.x+1.2, 0.05, tallest.z);
+    antGlowBase.userData.pulse = true;
+    g.add(antGlowBase);
+    registerConic({
+      id:'parabola_antenna',
+      type:'포물선',
+      name:'대치아이파크 옥상 위성 안테나',
+      eq: 'y  =  ' + frac('x²','4p') + '   (p = 초점거리)',
+      desc:'옥상 위성 안테나도 포물선 반사판이에요! 하늘 멀리서 오는 약한 전파(평행하게 들어오는 신호)를 반사판이 모두 한 초점으로 모아주기 때문에, 작은 안테나로도 먼 위성의 신호를 선명하게 받을 수 있어요. p 값을 바꾸면 안테나 모양이 실시간으로 바뀌는 걸 확인해보세요.',
+      points: 130,
+      mesh: dish
+    });
+    var antConic = conics[conics.length-1];
+    antConic.shapeParam = { kind:'parabola', value:1.1, min:0.3, max:3.0, step:0.05,
+      apply: function(p){ regenParabolicDish(dish, 1.3, p); } };
+  } else {
+    var pond = makeEllipseRing(4.4, 2.6, 0.35, 0x3fa0c9, {metalness:0.3, roughness:0.2, transparent:true, opacity:0.95});
+    pond.rotation.x = Math.PI/2;
+    pond.position.set(-2, 0.1, 16);
+    g.add(pond);
+    var pondWater = new THREE.Mesh(new THREE.CircleGeometry(4.2,32), new THREE.MeshStandardMaterial({color:0x2f8fc9, roughness:0.2, metalness:0.4}));
+    pondWater.rotation.x=-Math.PI/2; pondWater.scale.set(1,2.6/4.4,1); pondWater.position.set(-2,0.11,16);
+    g.add(pondWater);
+    var pondGlow = makeGlowRing(0xffd166); pondGlow.position.set(-2,0.06,16); pondGlow.userData.pulse=true;
+    g.add(pondGlow);
+    registerConic({
+      id:'ellipse_pond',
+      type:'타원',
+      name:'래미안대치팰리스 타원형 정원 연못',
+      eq: frac('x²','a²') + '  +  ' + frac('y²','b²') + '  =  1',
+      desc:'아파트 단지 안 산책로 연못이 동그란 원이 아니라 한쪽으로 길쭉한 타원 모양이에요. 두 초점을 중심에 두고 실을 늘어뜨려 그리면 이런 타원을 그릴 수 있어요 - 정원사들이 실제로 이 방법(못 두 개 + 실)으로 타원형 화단을 만들기도 해요!',
+      points: 110,
+      mesh: pondWater
+    });
+  }
+  return g;
+}
+
+// 아파트2 = 래미안대치팰리스 (서쪽 컬럼 맨 위)
+var raemian = makeApartmentComplex('래미안대치팰리스', 'rgba(30,60,110,0.85)', false);
+raemian.position.set(NODES.raemianGate.x-12, 0, NODES.raemianGate.z-12);
+world.add(raemian);
+
+// 아파트3 + 아파트1 = 대치아이파크 (동쪽 컬럼, 정문에서 남쪽으로 이어지는 한 단지로 표현)
+var ipark = makeApartmentComplex('대치아이파크', 'rgba(160,60,30,0.85)', true, {heightScale:0.58});
+ipark.position.set(NODES.iparkGate.x, 0, IPARK_BLDG_Z);
+world.add(ipark);
+
+// v6: 대치아이파크 남쪽 빈 땅에 새로 지은 아파트 -- 정문이 서쪽(단대부고 정문과 마주봄), 담장은 위 8b에서 이미 생성됨
+(function(){
+  var g = group();
+  var towers = [
+    {x:48, z:-38, h:26, w:9, d:9},
+    {x:64, z:-28, h:30, w:9, d:9},
+    {x:52, z:-18, h:24, w:8, d:8},
+  ];
+  var colors = [0xd8dde6, 0xc9d0dc, 0xdfe3ea];
+  towers.forEach(function(t, i){
+    var tower = makeApartmentTower(t.h, t.w, t.d, colors[i%colors.length]);
+    tower.position.set(t.x, 0, t.z);
+    g.add(tower);
+  });
+  for(var i=0;i<8;i++){
+    var tx = 40 + Math.random()*40, tz = -44 + Math.random()*28;
+    g.add(makeTree(tx, tz));
+  }
+  var label = makeLabelSprite('대치자이', {bg:'rgba(70,90,130,0.85)'});
+  label.position.set(58, 34, -28);
+  g.add(label);
+  world.add(g);
+})();
+
+/* ============================================================
+   10. (v5: 양재천 현수교 삭제 -- 사용자 약도에 없어 지도에서 제거)
+============================================================ */
+
+/* ============================================================
+   11. 도로 위 가로등 여러 개 (장식)
+============================================================ */
+// v8: 가로등을 도로 위에 임의로 흩어놓던 방식을 없애고, 모든 도로의 양쪽 인도 위에
+//     일정한 간격으로 자동 배치한다 (교차로 부근과 이미 세워둔 등 근처는 건너뜀).
+placeRoadLamps(22);
+
+/* ============================================================
+   12. 콘란샵 내부 - 속삭이는 회랑 (타원)
+============================================================ */
+var CONRAN_INTERIOR = { x:-150, z:-150 };
+var WHISPER_FOCI = null; // {f1:{x,z}, f2:{x,z}} world-space, set below
+(function(){
+  var g = group();
+  // 사용자 피드백: 방이 너무 작았어서 전체적으로 확대(약 1.7배)
+  var a=17, b=10.5;
+  // 확대하지 않아도 확실히 "실내"처럼 보이도록, 방 바깥의 초원(바깥 맵과 같은 바닥)이 전혀 비치지 않게
+  // 벽 색과 어울리는 넓은 바닥을 room 바깥까지 깔아둠(안개와 함께 자연스럽게 시야를 가둠)
+  var floorExt = new THREE.Mesh(new THREE.CircleGeometry(90,48), new THREE.MeshStandardMaterial({color:0xe4d7ae, roughness:0.9}));
+  floorExt.rotation.x=-Math.PI/2; floorExt.position.y=-0.03; g.add(floorExt);
+  var floor = new THREE.Mesh(new THREE.CircleGeometry(1,48), new THREE.MeshStandardMaterial({color:0xcbb994, roughness:0.85}));
+  floor.rotation.x=-Math.PI/2; floor.scale.set(a,b,1); floor.receiveShadow=true; g.add(floor);
+  var wallMat = new THREE.MeshStandardMaterial({color:0xe4d7ae, roughness:0.7, side:THREE.DoubleSide});
+  var segN=48;
+  for(var i=0;i<segN;i++){
+    var t0=i/segN*Math.PI*2, t1=(i+1)/segN*Math.PI*2;
+    var x0=a*Math.cos(t0), z0=b*Math.sin(t0), x1=a*Math.cos(t1), z1=b*Math.sin(t1);
+    var segLen = Math.hypot(x1-x0,z1-z0);
+    var wallSeg = new THREE.Mesh(new THREE.PlaneGeometry(segLen*1.03,7.2), wallMat);
+    var midx=(x0+x1)/2, midz=(z0+z1)/2, ang=Math.atan2(x1-x0,z1-z0);
+    wallSeg.position.set(midx,3.6,midz);
+    wallSeg.rotation.y = ang + Math.PI/2;
+    wallSeg.receiveShadow=true; wallSeg.castShadow=true;
+    g.add(wallSeg);
+  }
+  var domeY = 7.1;
+  var dome = makeEllipseRing(a*0.97,b*0.97,0.3,0xf0e2ba,{metalness:0.25,roughness:0.5});
+  dome.rotation.x=Math.PI/2; dome.position.y=domeY; g.add(dome);
+  var domeCap = new THREE.Mesh(new THREE.SphereGeometry(a,28,16,0,Math.PI*2,0,Math.PI/2), new THREE.MeshStandardMaterial({color:0xf6ecce, side:THREE.DoubleSide, roughness:0.6}));
+  domeCap.scale.set(1,0.45,b/a); domeCap.position.y=domeY; g.add(domeCap);
+  var domeApexY = domeY + a*0.42; // 반사선이 향할 천장 위쪽 지점의 높이(정점 부근)
+
+  var c = Math.sqrt(Math.max(a*a-b*b,0.001));
+  var p1 = makeSimplePerson(0x3f5fae,0xffe0bd); p1.position.set(-c,0,0); p1.rotation.y=Math.PI/2; g.add(p1);
+  var p2 = makeSimplePerson(0xdedede,0xffe0bd); p2.position.set(c,0,0); p2.rotation.y=-Math.PI/2; g.add(p2);
+  [[-c,0],[c,0]].forEach(function(f){
+    var m = new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8), new THREE.MeshBasicMaterial({color:0xffd166}));
+    m.position.set(f[0],0.2,f[1]); g.add(m);
+  });
+  var glow = makeGlowRing(0xffd166); glow.position.set(0,0.05,0); glow.scale.set(3.6,3.6,1); glow.userData.pulse=true;
+  g.add(glow);
+  var label = makeLabelSprite('속삭이는 회랑', {bg:'rgba(120,90,30,0.85)'});
+  label.position.set(0,8.4,0); g.add(label);
+
+  // 타원의 반사 성질: 한 초점에서 나온 소리가 천장(벽)에 부딪히면 반드시 반대쪽 초점으로 모인다.
+  // 요청에 따라 여러 개가 아닌 "초점 -> 천장 -> 반대쪽 초점" 딱 한 개의 선으로 표현하고, 상시 표시함.
+  var rayY = 1.6;
+  var rpts = [
+    new THREE.Vector3(-c, rayY, 0),
+    new THREE.Vector3(0, domeApexY, 0),
+    new THREE.Vector3(c, rayY, 0)
+  ];
+  var rcurve = new THREE.CatmullRomCurve3(rpts);
+  var rgeo = new THREE.TubeGeometry(rcurve, 24, 0.05, 8, false);
+  var rmat = new THREE.MeshBasicMaterial({ color:0x9fe8ff, transparent:true, opacity:0.65 });
+  var rayMesh = new THREE.Mesh(rgeo, rmat);
+  g.add(rayMesh);
+
+  registerConic({
+    id:'ellipse_whisper',
+    type:'타원',
+    name:'콘란샵의 속삭이는 회랑',
+    eq: frac('x²','a²') + '  +  ' + frac('y²','b²') + '  =  1',
+    desc:'이 타원형 방은 성 바오로 대성당의 유명한 "속삭이는 회랑(Whispering Gallery)"을 본떠 만들었어요. 한쪽 초점에서 벽 쪽으로 아주 작게 속삭이면, 소리가 타원 천장(벽)에 반사되어 반드시 반대쪽 초점으로 다시 모여요! 그래서 멀리 떨어진 반대편 초점에서도 그 속삭임이 또렷하게 들립니다. 파란 선은 그 소리의 반사 경로를 보여줘요. (타원의 정의: 두 초점까지 거리의 합이 일정한 점들의 자취.)',
+    points: 160,
+    mesh: g
+  });
+
+  g.position.set(CONRAN_INTERIOR.x, 0, CONRAN_INTERIOR.z);
+  world.add(g);
+  WHISPER_FOCI = {
+    f1: { x: CONRAN_INTERIOR.x - c, z: CONRAN_INTERIOR.z },
+    f2: { x: CONRAN_INTERIOR.x + c, z: CONRAN_INTERIOR.z }
+  };
+})();
+
+/* ============================================================
+   13. 자동차 (포물선 전조등 반사경)
+============================================================ */
+function makeCar(bodyColor){
+  var g = group();
+  var body = box(3.6,1.0,1.8, bodyColor, {metalness:0.4, roughness:0.4});
+  body.position.y = 0.85; g.add(body);
+  var cabin = box(1.9,0.75,1.6, 0xdbe8f2, {metalness:0.2, roughness:0.2, transparent:true, opacity:0.85});
+  cabin.position.set(-0.2,1.55,0); g.add(cabin);
+  [[-1.15,-0.85],[-1.15,0.85],[1.15,-0.85],[1.15,0.85]].forEach(function(p){
+    var wheel = cyl(0.42,0.42,0.32,14,0x1c1c1c);
+    wheel.rotation.z = Math.PI/2;
+    wheel.position.set(p[0],0.42,p[1]);
+    g.add(wheel);
+  });
+  // --- 전조등 (v7: 실제 전조등처럼 반사판 + 초점 전구 + 렌즈 + 빛기둥 + 노면 광량 표현) ---
+  var HL_RADIUS = 0.34;
+  var HL_DEPTH0 = 0.26;
+  var HL_RIM_X = 1.95;   // 렌즈(전조등 앞면)의 위치. 반사판이 깊어지면 꼭짓점이 차 안쪽으로 들어가고 앞면은 그대로.
+  var headlights = group();
+  var headlightParts = [];
+  [-0.6,0.6].forEach(function(hz){
+    // 반사판(포물면). v7 수정: 이전엔 rotation.x 를 써서 접시가 옆(+z)을 보고 있었음 -> 앞(+x)을 보도록 고침.
+    var dish = makeParabolicDish(HL_RADIUS, HL_DEPTH0, 0xf6f7fa, {metalness:0.95, roughness:0.06, emissive:0xfff2c0, emissiveIntensity:0.5});
+    dish.rotation.z = -Math.PI/2;
+    dish.position.set(HL_RIM_X - HL_DEPTH0, 0.85, hz);
+    headlights.add(dish);
+    // 검은 하우징(테두리)
+    var bezel = new THREE.Mesh(new THREE.TorusGeometry(HL_RADIUS*1.04, 0.05, 8, 20), new THREE.MeshStandardMaterial({color:0x1b1e24, roughness:0.7}));
+    bezel.rotation.y = Math.PI/2;
+    bezel.position.set(1.9, 0.85, hz);
+    headlights.add(bezel);
+    // 초점에 놓인 전구 -- p를 바꾸면 이 전구가 초점을 따라 앞뒤로 움직이는 게 보임
+    var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), new THREE.MeshBasicMaterial({color:0xffffff}));
+    bulb.position.set(HL_RIM_X - HL_DEPTH0 + (HL_RADIUS*HL_RADIUS)/(4*HL_DEPTH0), 0.85, hz);
+    headlights.add(bulb);
+    // 전구를 초점에 붙잡아 두는 가느다란 지지대 (전구가 허공에 떠 보이지 않게)
+    var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,1,6), new THREE.MeshStandardMaterial({color:0x2a2f38, roughness:0.6}));
+    stem.rotation.z = Math.PI/2;
+    stem.position.set(HL_RIM_X - HL_DEPTH0, 0.85, hz);
+    headlights.add(stem);
+    // 유리 렌즈 커버
+    var lens = new THREE.Mesh(new THREE.CircleGeometry(HL_RADIUS*1.02, 20), new THREE.MeshStandardMaterial({color:0xfff6d8, transparent:true, opacity:0.32, metalness:0.1, roughness:0.05, side:THREE.DoubleSide}));
+    lens.rotation.y = Math.PI/2;
+    lens.position.set(1.93, 0.85, hz);
+    headlights.add(lens);
+    // 빛기둥: 밝고 좁은 심(core) + 부드럽고 넓은 바깥(halo) 2겹
+    var core = new THREE.Mesh(new THREE.ConeGeometry(0.5,4.5,18,1,true), new THREE.MeshBasicMaterial({color:0xfffdf0, transparent:true, opacity:0.16, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending}));
+    core.rotation.z = Math.PI/2; core.position.set(4.2,0.85,hz);   // 꼭짓점이 램프쪽, 넓은 쪽이 앞쪽
+    headlights.add(core);
+    var halo = new THREE.Mesh(new THREE.ConeGeometry(1.0,4.5,18,1,true), new THREE.MeshBasicMaterial({color:0xfff3c4, transparent:true, opacity:0.07, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending}));
+    halo.rotation.z = Math.PI/2; halo.position.set(4.2,0.85,hz);
+    headlights.add(halo);
+    headlightParts.push({ dish:dish, beam:core, halo:halo, bulb:bulb, lens:lens, stem:stem, rimX:HL_RIM_X, hz:hz });
+  });
+  // 노면에 비치는 빛 웅덩이 (클릭 판정에 안 들리도록 headlights 그룹 밖에 둠)
+  var lightPool = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({color:0xfff0b8, transparent:true, opacity:0.16, depthWrite:false, blending:THREE.AdditiveBlending}));
+  lightPool.rotation.x = -Math.PI/2;
+  lightPool.position.set(5.2, 0.07, 0);
+  lightPool.scale.set(2.2, 4.6, 1);
+  g.add(lightPool);
+  var headlightGlow = new THREE.PointLight(0xfff0c0, 0.5, 9, 2);
+  headlightGlow.position.set(2.4,0.85,0);
+  headlights.add(headlightGlow);
+  g.add(headlights);
+  g.userData.lightPool = lightPool;
+  [-0.6,0.6].forEach(function(tz){
+    var tail = box(0.12,0.22,0.35,0xd3372f, {emissive:0xd3372f, emissiveIntensity:0.6});
+    tail.position.set(-1.82,0.85,tz); g.add(tail);
+  });
+  g.userData.headlights = headlights;
+  g.userData.headlightParts = headlightParts;
+  g.userData.headlightGlow = headlightGlow;
+  g.userData.headlightRadius = HL_RADIUS;
+  g.userData.headlightP = (HL_RADIUS*HL_RADIUS)/(4*HL_DEPTH0); // 기본 반사판 모양에 해당하는 p 값
+  g.traverse(function(c){ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } });
+  // 빛 자체(빛기둥·렌즈·노면 웅덩이)가 그림자를 드리우면 안 됨 -- 위 traverse 뒤에 꺼줘야 함
+  headlightParts.forEach(function(part){
+    part.beam.castShadow = false; part.beam.receiveShadow = false;
+    if(part.halo){ part.halo.castShadow = false; part.halo.receiveShadow = false; }
+    if(part.bulb){ part.bulb.castShadow = false; }
+    if(part.lens){ part.lens.castShadow = false; }
+  });
+  lightPool.castShadow = false; lightPool.receiveShadow = false;
+  return g;
+}
+
+// 전조등 반사판의 초점거리 p를 바꿔 실제 광학 법칙에 따라 모양·빛 세기·퍼짐을 갱신.
+// 반사판이 얕을수록(p가 클수록) 빛을 모으는 입체각이 작아 어둡지만 훨씬 좁고 곧게 뻗고,
+// 반사판이 깊을수록(p가 작을수록) 더 넓은 각도의 빛을 모아 밝지만 광선이 더 넓게 퍼짐.
+function updateHeadlightPhysics(carGroup, p){
+  var radius = carGroup.userData.headlightRadius;
+  carGroup.userData.headlightP = p;
+  var depth = (radius*radius)/(4*p);
+  // 초점에서 반사판이 차지하는 입체각의 비율 = 전구 빛 중 실제로 모아지는 양 (밝기)
+  var phi = Math.atan2(radius, p - depth);          // 꼭짓점 방향 기준 테두리까지의 반각
+  var capture = THREE.MathUtils.clamp((1-Math.cos(phi))/2, 0.02, 0.98);
+  // 실제 전구는 크기가 있어서 완벽한 평행광이 안 나옴 -> 퍼짐각 ≈ (전구 반지름)/(초점거리 p)
+  var spread = THREE.MathUtils.clamp(0.05/p, 0.02, 0.95);
+  var beamLen = 4.5;
+  var coreR = THREE.MathUtils.clamp(beamLen*Math.tan(spread)*0.55, 0.05, 2.0);
+  var haloR = THREE.MathUtils.clamp(beamLen*Math.tan(spread)*1.15, 0.1, 3.4);
+  carGroup.userData.headlightParts.forEach(function(part){
+    regenParabolicDish(part.dish, radius, p);
+    part.dish.material.emissiveIntensity = 0.1 + capture*0.9;
+    // 반사판이 깊어질수록 꼭짓점이 차 안쪽으로 들어가고 등의 앞면(렌즈)은 제자리 -- 실제 전조등처럼
+    if(part.rimX !== undefined) part.dish.position.x = part.rimX - depth;
+    // 전구는 항상 반사판의 초점 위 -> p를 키우면 전구가 앞으로 쭉 나온다
+    var apexX = (part.rimX !== undefined ? part.rimX - depth : 0);
+    if(part.bulb) part.bulb.position.x = apexX + p;
+    if(part.stem){                         // 꼭짓점 -> 초점을 잇는 지지대
+      part.stem.scale.y = Math.max(p, 0.02);
+      part.stem.position.x = apexX + p/2;
+    }
+    part.beam.geometry.dispose();
+    part.beam.geometry = new THREE.ConeGeometry(coreR, beamLen, 18, 1, true);
+    part.beam.material.opacity = 0.05 + capture*0.30;
+    if(part.halo){
+      part.halo.geometry.dispose();
+      part.halo.geometry = new THREE.ConeGeometry(haloR, beamLen, 18, 1, true);
+      part.halo.material.opacity = 0.02 + capture*0.13;
+    }
+  });
+  if(carGroup.userData.lightPool){
+    // 넓게 퍼질수록 웅덩이는 넓지만 옅고, 좁게 모일수록 길고 진해짐
+    var w = THREE.MathUtils.clamp(1.0 + Math.tan(spread)*7.0, 1.0, 4.0);   // 도로 폭보다 넓어지지 않게
+    var l = THREE.MathUtils.clamp(6.5 - Math.tan(spread)*3.0, 2.2, 6.5);
+    carGroup.userData.lightPool.scale.set(l, w, 1);   // local x = 차 진행방향(길이), local y = 좌우(폭)
+    carGroup.userData.lightPool.position.x = 1.9 + l;   // 웅덩이가 차 밑으로 파고들지 않게 앞쪽에서 시작
+    carGroup.userData.lightPool.material.opacity = 0.05 + capture*0.22;
+  }
+  carGroup.userData.headlightGlow.intensity = 0.1 + capture*1.6;
+  // 밤낮에 따라 배율을 곱할 수 있도록 "물리 계산 결과 원값"을 따로 보관
+  carGroup.userData.hlBase = {
+    glow: 0.1 + capture*1.6,
+    core: 0.05 + capture*0.30,
+    halo: 0.02 + capture*0.13,
+    pool: 0.05 + capture*0.22
+  };
+}
+
+// 실제 도로(roadSegment)를 따라가도록 재구성한 자동차 경로 (v5 도로망 기준)
+// v7: 우리나라 우측통행 -- 차는 항상 진행 방향 기준 "오른쪽 차선"으로만 달림(lane = 차선 중심까지의 거리).
+//     차선을 벗어나 중앙선을 물지 않도록 각 노선이 지나는 도로 폭의 1/4을 오프셋으로 씀.
+var carPaths = [
+  { lane:2.2, pts:[NODES.hanti, {x:0,z:-140}, NODES.topWest, NODES.dogok, {x:0,z:-140}, NODES.hanti] },
+  { lane:2.0, pts:[NODES.hanti, {x:0,z:-95}, NODES.raemianGate, {x:0,z:-95}, {x:0,z:-115}, {x:IPARK_X,z:-115}, NODES.iparkGate, {x:IPARK_X,z:-115}, {x:0,z:-115}, NODES.hanti] },
+  { lane:2.2, pts:[NODES.hanti, {x:0,z:-30}, NODES.schoolGate, {x:0,z:-30}, NODES.iparkHome, {x:0,z:-30}, NODES.hanti] },
+  { lane:2.1, pts:[NODES.hanti, NODES.hantiStation, NODES.hanti, {x:0,z:62}, NODES.lotte, {x:0,z:62}, NODES.conran, {x:0,z:62}, NODES.southEnd, {x:0,z:62}, NODES.hanti] },
+  { lane:2.2, pts:[NODES.hanti, {x:0,z:-140}, {x:0,z:-30}, NODES.iparkHome, {x:0,z:-30}, NODES.hanti] },
+];
+var carColors = [0xd3372f, 0x2f6fd3, 0xf2c14e, 0x3fae5e, 0x9b59b6];
+var cars = [];
+carPaths.forEach(function(pathDef, idx){
+  // 연속으로 같은 좌표가 들어가면 길이 0짜리 구간이 생겨 차가 순간적으로 떨림 -> 미리 정리
+  var path = pathDef.pts.filter(function(p, i, arr){
+    var prev = arr[(i-1+arr.length)%arr.length];
+    return Math.hypot(p.x-prev.x, p.z-prev.z) > 0.01;
+  });
+  if(path.length < 2) path = pathDef.pts;
+  var car = makeCar(carColors[idx % carColors.length]);
+  car.userData.path = path;
+  car.userData.lane = pathDef.lane;
+  car.userData.segIndex = 0;
+  car.userData.segT = Math.random();
+  car.userData.speed = 4.2 + Math.random()*1.6;
+  car.userData.carId = 'car_' + idx;
+  var startPos = path[0];
+  car.position.set(startPos.x, 0, startPos.z);
+  world.add(car);
+  cars.push(car);
+  car.userData.headlights.traverse(function(c){
+    if(c.isMesh){ c.userData.isCarHeadlight = true; c.userData.carId = car.userData.carId; }
+  });
+  carHeadlightMeshes.push(car.userData.headlights);
+  updateHeadlightPhysics(car, car.userData.headlightP);  // 초기 상태도 같은 물리식으로 맞춰줌
+});
+var carsById = {};
+cars.forEach(function(car){ carsById[car.userData.carId] = car; });
+
+// 전조등 팝업이 열려있던 동안 멈춰뒀던 자동차를 다시 움직이게 함 (다른 팝업을 열거나 닫을 때 호출)
+function resumeStoppedCar(){
+  if(stoppedCarId && carsById[stoppedCarId]){ carsById[stoppedCarId].userData.stopped = false; }
+  stoppedCarId = null;
+}
+
+function updateCars(dt){
+  cars.forEach(function(car){
+    if(car.userData.stopped) return; // 전조등 슬라이더 팝업을 보는 동안은 정지시켜 관찰하기 쉽게 함
+    var path = car.userData.path;
+    var i0 = car.userData.segIndex;
+    var i1 = (i0+1) % path.length;
+    var a = path[i0], b = path[i1];
+    var dx = b.x-a.x, dz = b.z-a.z;
+    var segLen = Math.sqrt(dx*dx+dz*dz) || 0.001;
+    car.userData.segT += (car.userData.speed*dt)/segLen;
+    if(car.userData.segT >= 1){
+      car.userData.segT = 0;
+      car.userData.segIndex = i1;
+      i0 = car.userData.segIndex; i1 = (i0+1)%path.length;
+      a = path[i0]; b = path[i1];
+    }
+    var t = car.userData.segT;
+    var x = THREE.MathUtils.lerp(a.x,b.x,t);
+    var z = THREE.MathUtils.lerp(a.z,b.z,t);
+    // --- 우측통행: 진행 방향의 오른쪽으로 반차선만큼 밀어서 중앙선을 물지 않게 함 ---
+    var sdx = b.x-a.x, sdz = b.z-a.z;
+    var sl = Math.sqrt(sdx*sdx+sdz*sdz) || 0.001;
+    var fx = sdx/sl, fz = sdz/sl;
+    var lane = car.userData.lane || 2.1;
+    var tgtOffX = -fz*lane, tgtOffZ = fx*lane;   // (진행방향 기준 오른쪽) = (-fz, fx)
+    if(car.userData.offX === undefined){ car.userData.offX = tgtOffX; car.userData.offZ = tgtOffZ; }
+    var k = 1 - Math.pow(0.0000001, dt);         // 코너에서 차선 변경이 부드럽게 이어지도록
+    car.userData.offX += (tgtOffX - car.userData.offX)*k;
+    car.userData.offZ += (tgtOffZ - car.userData.offZ)*k;
+    car.position.set(x + car.userData.offX, 0, z + car.userData.offZ);
+    var ang = Math.atan2(sdx, sdz);
+    car.rotation.y = lerpAngle(car.rotation.y, ang - Math.PI/2, k);
+  });
+}
+
+/* ============================================================
+   13b. 자전거 (한티역·도곡역·단대부고 앞 거치대)
+   낮에는 걷는 속도의 1.5배. 밤에는 전조등을 켜고 그 밝기만큼만 빨라진다
+   (전조등이 어두우면 걷는 속도, 최대로 밝히면 1.5배).
+============================================================ */
+var BIKE_LIGHT = { R:0.16, p:0.16, bright:0 };
+function clamp01(v){ return v < 0 ? 0 : (v > 1 ? 1 : v); }
+// 전조등 밝기 = 초점에 놓인 전구가 내는 빛 중 반사판이 실제로 모아 앞으로 보내는 비율.
+// (초점에서 반사판이 차지하는 입체각의 비율 = (1-cos φ)/2)
+function bikeLightCapture(p){
+  var depth = (BIKE_LIGHT.R*BIKE_LIGHT.R)/(4*p);
+  var phi = Math.atan2(BIKE_LIGHT.R, p - depth);
+  var v = (1-Math.cos(phi))/2;
+  // 슬라이더 양 끝이 0%/100%에 딱 맞게 떨어지도록 정규화
+  var lo = 0.066, hi = 0.941;
+  return clamp01((v - lo)/(hi - lo));
+}
+function makeBicycle(frameColor){
+  var g = group();
+  var wheelMat = { metalness:0.3, roughness:0.6 };
+  [-0.62, 0.62].forEach(function(wx){
+    var tire = new THREE.Mesh(new THREE.TorusGeometry(0.42,0.075,8,20), new THREE.MeshStandardMaterial({color:0x1b1b1b, roughness:0.8}));
+    tire.position.set(wx,0.42,0); g.add(tire);
+    var hub = cyl(0.06,0.06,0.1,8,0xbfc6cf); hub.rotation.x=Math.PI/2; hub.position.set(wx,0.42,0); g.add(hub);
+    for(var sp=0;sp<4;sp++){
+      var spoke = box(0.03,0.8,0.02,0xd6dbe2);
+      spoke.position.set(wx,0.42,0); spoke.rotation.z = sp*Math.PI/4; g.add(spoke);
+    }
+  });
+  var barA = box(1.05,0.07,0.07, frameColor); barA.position.set(0,0.78,0); barA.rotation.z=0.06; g.add(barA);
+  var barB = box(0.07,0.55,0.07, frameColor); barB.position.set(-0.42,0.60,0); barB.rotation.z=-0.35; g.add(barB);
+  var barC = box(0.07,0.62,0.07, frameColor); barC.position.set(0.34,0.60,0); barC.rotation.z=0.30; g.add(barC);
+  var barD = box(0.62,0.06,0.06, frameColor); barD.position.set(-0.32,0.45,0); g.add(barD);
+  var seat = box(0.30,0.09,0.16,0x22262e); seat.position.set(-0.40,0.92,0); g.add(seat);
+  var handleStem = box(0.06,0.42,0.06,0x3a3f48); handleStem.position.set(0.52,0.98,0); g.add(handleStem);
+  var handle = cyl(0.045,0.045,0.62,8,0x22262e); handle.rotation.x=Math.PI/2; handle.position.set(0.52,1.18,0); g.add(handle);
+  var pedal = cyl(0.10,0.10,0.06,10,0x2e3440); pedal.rotation.x=Math.PI/2; pedal.position.set(0,0.34,0); g.add(pedal);
+  // 전조등 (포물면 반사판 + 초점 전구 + 빛기둥) -- 기본은 꺼짐
+  var hl = group();
+  var hlDish = makeParabolicDish(BIKE_LIGHT.R, (BIKE_LIGHT.R*BIKE_LIGHT.R)/(4*BIKE_LIGHT.p), 0xf3f6fa, {metalness:0.95, roughness:0.06, emissive:0xfff0c0, emissiveIntensity:0});
+  hlDish.rotation.z = -Math.PI/2; hlDish.position.set(0.60,1.05,0); hl.add(hlDish);
+  var hlBulb = new THREE.Mesh(new THREE.SphereGeometry(0.035,8,6), new THREE.MeshBasicMaterial({color:0xffffff}));
+  hlBulb.position.set(0.60+BIKE_LIGHT.p,1.05,0); hl.add(hlBulb);
+  var hlBeam = new THREE.Mesh(new THREE.ConeGeometry(0.6,4.0,16,1,true),
+    new THREE.MeshBasicMaterial({color:0xfff3c4, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending}));
+  hlBeam.rotation.z = Math.PI/2; hlBeam.position.set(2.6,1.05,0); hl.add(hlBeam);
+  var hlPool = new THREE.Mesh(new THREE.CircleGeometry(1,20), new THREE.MeshBasicMaterial({color:0xfff0b8, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending}));
+  hlPool.rotation.x = -Math.PI/2; hlPool.position.set(3.2,0.06,0); hlPool.scale.set(3.4,2.2,1); hl.add(hlPool);
+  g.add(hl);
+  g.traverse(function(c){ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } });
+  [hlBeam, hlPool].forEach(function(m){ m.castShadow=false; m.receiveShadow=false; });
+  g.userData.light = { dish:hlDish, bulb:hlBulb, beam:hlBeam, pool:hlPool, baseX:0.60 };
+  return g;
+}
+// 자전거 거치대 위치
+var BIKE_SPOTS = [];
+(function(){
+  var colors = [0x2f6fd3, 0xd3372f, 0x3fae5e, 0xf2c14e, 0x9b59b6, 0x2ec4b6, 0xff8c4d, 0x5a6b8a];
+  function rack(cx, cz, dirX, dirZ, count, rotY){
+    for(var i=0;i<count;i++){
+      var x = cx + dirX*i, z = cz + dirZ*i;
+      var bike = makeBicycle(colors[i % colors.length]);
+      bike.position.set(x, 0, z);
+      bike.rotation.y = rotY;
+      world.add(bike);
+      // 거치대 프레임
+      var stand = box(0.08,0.5,0.08,0x8d949e); stand.position.set(x, 0.25, z - 0.55);
+      stand.rotation.y = rotY; world.add(stand);
+      BIKE_SPOTS.push({ x:x, z:z, rotY:rotY, mesh:bike, taken:false });
+    }
+  }
+  rack(36, 27, 2.2, 0, 8, 0);                 // 한티역 앞
+  rack(16, -131, 2.2, 0, 8, 0);               // 도곡역 앞
+  rack(-8, -47, 0, 2.0, 6, Math.PI/2);        // 단대부고 정문 앞 (정문 진입로 남쪽, 도로 밖)
+})();
+
+// 타고 있는 자전거 (플레이어에 붙는 한 대)
+var ridingBike = makeBicycle(0xffd166);
+ridingBike.visible = false;
+ridingBike.position.set(0,0,0.15);
+ridingBike.rotation.y = -Math.PI/2;   // 자전거의 앞(+x)이 플레이어의 정면(+z)을 향하도록
+var riding = { active:false, spot:null, headlightOn:false };
+
+function updateBikeLight(p){
+  BIKE_LIGHT.p = p;
+  BIKE_LIGHT.bright = bikeLightCapture(p);
+  var L = ridingBike.userData.light;
+  var depth = (BIKE_LIGHT.R*BIKE_LIGHT.R)/(4*p);
+  regenParabolicDish(L.dish, BIKE_LIGHT.R, p);
+  L.dish.position.x = L.baseX;                       // 렌즈면 고정
+  L.bulb.position.x = L.baseX - depth + p;
+  var on = riding.headlightOn ? 1 : 0;
+  L.dish.material.emissiveIntensity = on * (0.1 + BIKE_LIGHT.bright*1.2);
+  var spread = THREE.MathUtils.clamp(0.05/p, 0.02, 0.95);
+  L.beam.geometry.dispose();
+  L.beam.geometry = new THREE.ConeGeometry(THREE.MathUtils.clamp(4.0*Math.tan(spread)*0.9, 0.08, 2.4), 4.0, 16, 1, true);
+  L.beam.material.opacity = on * (0.04 + BIKE_LIGHT.bright*0.26);
+  var w = THREE.MathUtils.clamp(1.0 + Math.tan(spread)*6.0, 1.0, 3.6);
+  var l = THREE.MathUtils.clamp(5.5 - Math.tan(spread)*2.6, 2.0, 5.5);
+  L.pool.scale.set(l, w, 1);
+  L.pool.position.x = 0.9 + l;
+  L.pool.material.opacity = on * (0.04 + BIKE_LIGHT.bright*0.22);
+  var panelVal = document.getElementById('bike-bright-val');
+  if(panelVal) panelVal.textContent = Math.round(BIKE_LIGHT.bright*100) + '%';
+  var bar = document.getElementById('bike-bright-bar');
+  if(bar) bar.style.width = Math.round(BIKE_LIGHT.bright*100) + '%';
+  var spd = document.getElementById('bike-speed-val');
+  if(spd) spd.textContent = playerSpeedMultiplier().toFixed(2) + '배';
+}
+// 자전거 속도 배율
+function playerSpeedMultiplier(){
+  if(!riding.active) return 1;
+  if(isNight){
+    if(!riding.headlightOn) return 1.0;               // 어두워서 걷는 속도로만 갈 수 있음
+    return 1.0 + 0.5*BIKE_LIGHT.bright;              // 전조등이 밝을수록 최대 1.5배
+  }
+  return 1.5;                                         // 낮에는 항상 1.5배
+}
+
+/* ============================================================
+   14. 단붕이 캐릭터 & 조작
+============================================================ */
+var player = group();
+(function(){
+  var body = cyl(0.55,0.62,1.1,14,0x2f6fd3);
+  body.position.y=0.85; player.add(body);
+  var backpack = box(0.55,0.7,0.32,0xd3372f); backpack.position.set(0,0.95,-0.5); player.add(backpack);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.42,18,14), new THREE.MeshStandardMaterial({color:0xffe0bd}));
+  head.position.y=1.75; player.add(head);
+  var hair = new THREE.Mesh(new THREE.SphereGeometry(0.44,16,10,0,Math.PI*2,0,Math.PI/1.7), new THREE.MeshStandardMaterial({color:0x2b2320}));
+  hair.position.y=1.85; player.add(hair);
+  var eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05,8,8), new THREE.MeshStandardMaterial({color:0x1a1a1a}));
+  eyeL.position.set(0.16,1.77,0.36); player.add(eyeL);
+  var eyeR = eyeL.clone(); eyeR.position.x=-0.16; player.add(eyeR);
+  [[0.32,-0.3],[-0.32,-0.3]].forEach(function(p){
+    var leg = cyl(0.14,0.14,0.75,10,0x333c4d);
+    leg.position.set(p[0],0.38,p[1]); player.add(leg);
+  });
+  player.traverse(function(c){ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } });
+  var nameTag = makeLabelSprite('탐험가', {bg:'rgba(60,120,60,0.85)', fontSize:19});
+  nameTag.position.set(0,2.5,0);
+  player.add(nameTag);
+  player.userData.nameTag = nameTag;
+})();
+player.position.set(NODES.hanti.x-10, 0, NODES.hanti.z+14);
+player.rotation.y = Math.PI;
+world.add(player);
+player.add(ridingBike);   // 자전거를 타면 보이게 되는, 플레이어에 붙은 자전거
+
+var zone = 'outside'; // 'outside' | 'conran'
+var savedOutsidePos = null;
+
+var input = { fwd:false, back:false, left:false, right:false };
+// 키보드로 실제 누르고 있는 키 (터치 조이스틱을 놓을 때 키보드 입력까지 같이 풀리지 않게 하려고 따로 추적)
+var keyHeld = { fwd:false, back:false, left:false, right:false };
+var keyMap = {
+  ArrowUp:'fwd', KeyW:'fwd',
+  ArrowDown:'back', KeyS:'back',
+  ArrowLeft:'left', KeyA:'left',
+  ArrowRight:'right', KeyD:'right'
+};
+window.addEventListener('keydown', function(e){
+  var k = keyMap[e.code];
+  if(k){ input[k]=true; keyHeld[k]=true; e.preventDefault(); }
+});
+window.addEventListener('keyup', function(e){
+  var k = keyMap[e.code];
+  if(k){ input[k]=false; keyHeld[k]=false; }
+});
+function bindHold(id, key){
+  var el = document.getElementById(id);
+  var set = function(v){ return function(ev){ ev.preventDefault(); input[key]=v; }; };
+  el.addEventListener('touchstart', set(true), {passive:false});
+  el.addEventListener('touchend', set(false), {passive:false});
+  el.addEventListener('touchcancel', set(false), {passive:false});
+  el.addEventListener('mousedown', set(true));
+  el.addEventListener('mouseup', set(false));
+  el.addEventListener('mouseleave', set(false));
+}
+bindHold('btn-up','fwd'); bindHold('btn-down','back'); bindHold('btn-left','left'); bindHold('btn-right','right');
+if('ontouchstart' in window){ document.getElementById('dpad').classList.add('show'); }
+
+var popupOverlay = document.getElementById('popup-overlay');
+var promptOverlay = document.getElementById('entry-prompt-overlay');
+
+var PLAYER_SPEED = 11.5;
+var PLAYER_TURN = 2.4;
+function updatePlayer(dt){
+  if(!started) return;
+  if(popupOverlay.classList.contains('show') || promptOverlay.classList.contains('show')) return;
+  if(input.left) player.rotation.y += PLAYER_TURN*dt;
+  if(input.right) player.rotation.y -= PLAYER_TURN*dt;
+  var move = 0;
+  if(input.fwd) move += 1;
+  if(input.back) move -= 1;
+  if(move !== 0){
+    var dir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+    var oldX = player.position.x, oldZ = player.position.z;
+    var spd = PLAYER_SPEED*playerSpeedMultiplier();
+    var newX = oldX + dir.x*move*spd*dt;
+    var newZ = oldZ + dir.z*move*spd*dt;
+    if(zone==='outside'){
+      var resolved = applyCampusWalls(oldX, oldZ, newX, newZ);
+      newX = resolved.x; newZ = resolved.z;
+    }
+    player.position.x = newX;
+    player.position.z = newZ;
+  }
+  var cx = zone==='conran' ? CONRAN_INTERIOR.x : 0;
+  var cz = zone==='conran' ? CONRAN_INTERIOR.z : 0;
+  var halfX = zone==='conran' ? 14.5 : (WORLD_HALF-5);
+  var halfZ = zone==='conran' ? 8.8 : (WORLD_HALF-5);
+  player.position.x = THREE.MathUtils.clamp(player.position.x, cx-halfX, cx+halfX);
+  player.position.z = THREE.MathUtils.clamp(player.position.z, cz-halfZ, cz+halfZ);
+  var walking = move !== 0;
+  player.userData.walkT = (player.userData.walkT||0) + (walking? dt*8 : 0);
+  player.position.y = walking ? Math.abs(Math.sin(player.userData.walkT))*0.06 : 0;
+}
+
+/* ============================================================
+   15. 카메라 (드래그로 회전, 휠/슬라이더로 확대축소하는 궤도 카메라)
+============================================================ */
+var orbit = { azimuth: 0.15, pitch: 0.5, radius: 12, dragging:false, moved:false, lastX:0, lastY:0 };
+var ZOOM_MIN = 6, ZOOM_MAX = 46;
+var zoomSlider = document.getElementById('zoom-slider');
+zoomSlider.value = orbit.radius;
+zoomSlider.addEventListener('input', function(){
+  orbit.radius = parseFloat(zoomSlider.value);
+});
+
+function lerpAngle(a, b, t){
+  var diff = ((b-a+Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI;
+  return a + diff*t;
+}
+// 이동 중(드래그 중이 아닐 때)에는 카메라가 단붕이 등 뒤로 자동으로 돌아와서
+// 방향키 조작이 이전 버전처럼 직관적으로 느껴지도록 함. 정지 상태에서 드래그하면 자유 시점.
+function updateCameraFollow(dt){
+  // 터치 조이스틱으로 걷는 동안에는 orbit.dragging 이 계속 true 라서, 그 경우는 예외로 두고
+  // 키보드로 걸을 때처럼 카메라가 캐릭터 등 뒤로 따라오게 함
+  if(orbit.dragging && !touchMoveMode) return;
+  var moving = input.fwd || input.back || input.left || input.right;
+  if(!moving) return;
+  var targetAzimuth = player.rotation.y + Math.PI;
+  orbit.azimuth = lerpAngle(orbit.azimuth, targetAzimuth, 1-Math.pow(0.0005, dt));
+}
+function updateCamera(){
+  var px = player.position.x, pz = player.position.z, py = player.position.y;
+  // 속삭이는 회랑 내부에서는 안개(far)로 벽이 사라져 보이지 않도록 실제 카메라 거리를 좁게 제한
+  var r = (zone==='conran') ? Math.min(orbit.radius, 20) : orbit.radius;
+  var cx = px + r*Math.cos(orbit.pitch)*Math.sin(orbit.azimuth);
+  var cz = pz + r*Math.cos(orbit.pitch)*Math.cos(orbit.azimuth);
+  var camY = py + r*Math.sin(orbit.pitch) + 1.0;
+  camera.position.set(cx, camY, cz);
+  camera.lookAt(px, py+1.6, pz);
+}
+
+/* ============================================================
+   16. 미니맵 (2D 캔버스)
+============================================================ */
+var minimapWrap = document.getElementById('minimap-wrap');
+var mmCanvas = document.createElement('canvas');
+mmCanvas.width = 190; mmCanvas.height = 190;
+minimapWrap.appendChild(mmCanvas);
+var mmCtx = mmCanvas.getContext('2d');
+var MM_RANGE = 85;
+// v7: 평소엔 작은 아이콘만 두고, 누르면 큰 미니맵이 펼쳐지도록 함 (화면을 덜 가리게)
+var minimapOpen = false;
+function setMinimapOpen(v){
+  minimapOpen = v;
+  document.body.classList.toggle('mm-open', v);
+  if(v) drawMinimap();
+}
+document.getElementById('minimap-btn').addEventListener('click', function(){ setMinimapOpen(true); });
+minimapWrap.addEventListener('click', function(){ setMinimapOpen(false); });
+var MM_LANDMARKS = [
+  {x:NODES.hanti.x, z:NODES.hanti.z, label:'한티역 사거리', color:'#ffd400'},
+  {x:NODES.hantiStation.x, z:NODES.hantiStation.z-11, label:'한티역', color:'#5b6b8c'},
+  {x:NODES.lotte.x, z:NODES.lotte.z+20, label:'롯데', color:'#c23b3b'},
+  {x:NODES.conran.x, z:NODES.conran.z+16, label:'콘란샵', color:'#6fd3ff'},
+  {x:NODES.schoolGate.x-20, z:NODES.schoolGate.z, label:'단대부고', color:'#3f8f4a'},
+  {x:raemian.position.x, z:raemian.position.z, label:'래미안', color:'#4a6fb0'},
+  {x:ipark.position.x, z:ipark.position.z, label:'아이파크', color:'#ff8c4d'},
+  {x:NODES.iparkHome.x+15, z:NODES.iparkHome.z-25, label:'대치자이', color:'#5a6b8a'},
+  {x:NODES.dogok.x-11, z:NODES.dogok.z, label:'도곡역', color:'#0b8f5a'},
+  {x:SOLAR.x, z:SOLAR.z, label:'집광장치', color:'#ffb35a'},
+];
+function drawMinimap(){
+  if(!minimapOpen) return;   // 접혀 있으면 그릴 필요 없음
+  var W=190,H=190,cx=95,cy=95;
+  mmCtx.clearRect(0,0,W,H);
+  mmCtx.fillStyle = '#173322'; mmCtx.fillRect(0,0,W,H);
+  var scale = 90/MM_RANGE;
+  var px = player.position.x, pz = player.position.z;
+  function toScreen(wx,wz){ return { x: cx + (wx-px)*scale, y: cy + (wz-pz)*scale }; }
+
+  mmCtx.strokeStyle = 'rgba(255,255,255,0.4)'; mmCtx.lineWidth = 3;
+  ROAD_SEGMENTS_2D.forEach(function(seg){
+    var a = toScreen(seg.ax, seg.az), b = toScreen(seg.bx, seg.bz);
+    mmCtx.beginPath(); mmCtx.moveTo(a.x,a.y); mmCtx.lineTo(b.x,b.y); mmCtx.stroke();
+  });
+
+  MM_LANDMARKS.forEach(function(lm){
+    var s = toScreen(lm.x, lm.z);
+    if(s.x<-10||s.x>W+10||s.y<-10||s.y>H+10) return;
+    mmCtx.beginPath(); mmCtx.arc(s.x,s.y,4.5,0,Math.PI*2);
+    mmCtx.fillStyle = lm.color; mmCtx.fill();
+    mmCtx.strokeStyle='rgba(0,0,0,0.5)'; mmCtx.lineWidth=1; mmCtx.stroke();
+  });
+
+  // player arrow (always centered, rotated to heading)
+  mmCtx.save();
+  mmCtx.translate(cx,cy);
+  mmCtx.rotate(player.rotation.y);
+  mmCtx.beginPath();
+  mmCtx.moveTo(0,-9); mmCtx.lineTo(6,7); mmCtx.lineTo(0,3.5); mmCtx.lineTo(-6,7);
+  mmCtx.closePath();
+  mmCtx.fillStyle = '#ffd166'; mmCtx.fill();
+  mmCtx.strokeStyle = '#241a00'; mmCtx.lineWidth = 1.2; mmCtx.stroke();
+  mmCtx.restore();
+
+  // N 표시
+  mmCtx.fillStyle='rgba(255,255,255,0.7)'; mmCtx.font='bold 11px sans-serif'; mmCtx.textAlign='center';
+  mmCtx.fillText('N', 95, 14);
+}
+
+/* ============================================================
+   17. 상호작용 (레이캐스트로 이차곡선 클릭, 드래그로 카메라 회전)
+============================================================ */
+var raycaster = new THREE.Raycaster();
+var mouseNDC = new THREE.Vector2();
+var scoreValEl = document.getElementById('score-val');
+var progressValEl = document.getElementById('progress-val');
+var progressBarEl = document.getElementById('progress-bar');
+var listBodyEl = document.getElementById('list-body');
+var completeBannerEl = document.getElementById('complete-banner');
+
+function buildListUI(){
+  listBodyEl.innerHTML = '';
+  conics.forEach(function(c){
+    var row = document.createElement('div');
+    row.className = 'item' + (c.found?' found':'');
+    row.id = 'row-'+c.id;
+    row.innerHTML = '<div class="dot"></div><div style="flex:1">'+c.name+'</div><div class="tag">'+c.type+'</div>';
+    listBodyEl.appendChild(row);
+  });
+}
+buildListUI();
+
+// v7: 도감이 화면을 너무 많이 가려서 제목을 눌러 접고 펼칠 수 있게 함 (기본은 접힌 상태)
+var hudListEl = document.getElementById('hud-list');
+var listCaretEl = document.getElementById('list-caret');
+var listCountEl = document.getElementById('list-count');
+document.getElementById('list-toggle').addEventListener('click', function(){
+  var collapsed = hudListEl.classList.toggle('collapsed');
+  listCaretEl.textContent = collapsed ? '▸' : '▾';
+});
+
+function updateScoreUI(){
+  scoreValEl.textContent = score;
+  var foundCount = conics.filter(function(c){return c.found;}).length;
+  progressValEl.textContent = '발견한 이차곡선 ' + foundCount + ' / ' + conics.length;
+  progressBarEl.style.width = (foundCount/conics.length*100) + '%';
+  if(listCountEl) listCountEl.textContent = foundCount + '/' + conics.length;
+}
+updateScoreUI();
+
+/* ---- 오디오 (Web Audio API, 외부 파일 없이 절차적으로 생성) ---- */
+var audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){
+    var Ctor = window.AudioContext || window.webkitAudioContext;
+    if(Ctor) audioCtx = new Ctor();
+  }
+  return audioCtx;
+}
+function makeNoiseBuffer(ctx, seconds){
+  var sr = ctx.sampleRate, len = Math.floor(sr*seconds);
+  var buf = ctx.createBuffer(1, len, sr);
+  var data = buf.getChannelData(0);
+  for(var i=0;i<len;i++){ data[i] = Math.random()*2-1; }
+  return buf;
+}
+function createLoopVoice(freq, q){
+  var ctx = getAudioCtx();
+  if(!ctx) return null;
+  if(ctx.state === 'suspended'){ ctx.resume(); }
+  var src = ctx.createBufferSource();
+  src.buffer = makeNoiseBuffer(ctx, 2);
+  src.loop = true;
+  var band = ctx.createBiquadFilter();
+  band.type = 'bandpass'; band.frequency.value = freq; band.Q.value = q;
+  var gain = ctx.createGain(); gain.gain.value = 0;
+  src.connect(band); band.connect(gain); gain.connect(ctx.destination);
+  try{ src.start(); }catch(e){}
+  return { src:src, gain:gain, stop:function(){ try{ src.stop(); }catch(e){} } };
+}
+
+var micVoice = null;
+function stopMicAudio(){
+  if(micVoice){ micVoice.stop(); micVoice = null; }
+}
+// 이전에는 속삭이는 회랑 내부에서 "지지직"거리는 배경 잡음(좁은 대역필터 화이트노이즈)을 틀었으나,
+// 사용자 피드백에 따라 배경음을 완전히 껐음. 함수 자체는 다른 곳에서의 호출부와의 호환을 위해 남겨둠(아무 동작 안 함).
+var whisperVoice = null;
+function startWhisperAmbient(){ /* 배경음 없음 */ }
+function stopWhisperAmbient(){ if(whisperVoice){ whisperVoice.stop(); whisperVoice = null; } }
+
+/* ---- 속삭이는 회랑: 초점에서 실제 마이크로 5초 녹음하고 반대편 초점에서 재생 ---- */
+var recordings = { focus1:null, focus2:null };
+var isRecording = false;
+var focusActionBtn = document.getElementById('focus-action-btn');
+var recordProgressEl = document.getElementById('record-progress');
+var FOCUS_RADIUS = 3.4;
+
+function showFocusBtn(label, onClick){
+  focusActionBtn.textContent = label;
+  focusActionBtn.onclick = onClick;
+  focusActionBtn.classList.add('show');
+}
+function hideFocusBtn(){
+  focusActionBtn.classList.remove('show');
+}
+function startRecording(which){
+  if(isRecording) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    alert('이 브라우저에서는 마이크 녹음을 지원하지 않아요.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio:true }).then(function(stream){
+    isRecording = true;
+    hideFocusBtn();
+    var chunks = [];
+    var rec;
+    try{ rec = new MediaRecorder(stream); }
+    catch(e){ stream.getTracks().forEach(function(tr){ tr.stop(); }); isRecording=false; return; }
+    rec.ondataavailable = function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
+    rec.onstop = function(){
+      stream.getTracks().forEach(function(tr){ tr.stop(); });
+      var blob = new Blob(chunks, { type: chunks[0] && chunks[0].type ? chunks[0].type : 'audio/webm' });
+      if(recordings[which]) URL.revokeObjectURL(recordings[which]);
+      recordings[which] = URL.createObjectURL(blob);
+      isRecording = false;
+      recordProgressEl.classList.remove('show');
+    };
+    rec.start();
+    var remain = 5;
+    recordProgressEl.textContent = '🔴 녹음 중... ' + remain + '초';
+    recordProgressEl.classList.add('show');
+    var iv = setInterval(function(){
+      remain -= 1;
+      if(remain <= 0){
+        clearInterval(iv);
+        if(rec.state !== 'inactive') rec.stop();
+      } else {
+        recordProgressEl.textContent = '🔴 녹음 중... ' + remain + '초';
+      }
+    }, 1000);
+  }).catch(function(){
+    alert('마이크 권한을 허용해야 녹음할 수 있어요.');
+  });
+}
+// 재생 중인 녹음: 실제 속삭이는 회랑처럼 "소리가 모이는 그 초점"에 가까이 다가갈수록 크게,
+// 멀어질수록 작게 들리도록 플레이어와 목표 초점 사이 거리로 음량을 실시간 조절함.
+var currentPlayback = null; // {audio, target:{x,z}}
+var WHISPER_VOLUME_RADIUS = 9;
+function updateWhisperPlaybackVolume(){
+  if(!currentPlayback) return;
+  var d = Math.hypot(player.position.x-currentPlayback.target.x, player.position.z-currentPlayback.target.z);
+  var vol = THREE.MathUtils.clamp(1 - d/WHISPER_VOLUME_RADIUS, 0.03, 1);
+  currentPlayback.audio.volume = vol;
+}
+function playRecording(url, targetFocus){
+  if(!url) return;
+  if(currentPlayback){ try{ currentPlayback.audio.pause(); }catch(e){} }
+  var a = new Audio(url);
+  currentPlayback = { audio:a, target:targetFocus };
+  updateWhisperPlaybackVolume();
+  a.play().catch(function(){});
+  a.addEventListener('ended', function(){ if(currentPlayback && currentPlayback.audio===a) currentPlayback=null; });
+}
+function updateWhisperFocusUI(){
+  updateWhisperPlaybackVolume();
+  if(zone !== 'conran' || !WHISPER_FOCI){ hideFocusBtn(); return; }
+  if(isRecording) return;
+  var d1 = Math.hypot(player.position.x-WHISPER_FOCI.f1.x, player.position.z-WHISPER_FOCI.f1.z);
+  var d2 = Math.hypot(player.position.x-WHISPER_FOCI.f2.x, player.position.z-WHISPER_FOCI.f2.z);
+  if(d1 < FOCUS_RADIUS && d1 <= d2){
+    if(recordings.focus2) showFocusBtn('▶ 반대편 초점의 속삭임 듣기', function(){ playRecording(recordings.focus2, WHISPER_FOCI.f1); });
+    else showFocusBtn('🎙️ 여기서 5초 녹음하기', function(){ startRecording('focus1'); });
+  } else if(d2 < FOCUS_RADIUS){
+    if(recordings.focus1) showFocusBtn('▶ 반대편 초점의 속삭임 듣기', function(){ playRecording(recordings.focus1, WHISPER_FOCI.f2); });
+    else showFocusBtn('🎙️ 여기서 5초 녹음하기', function(){ startRecording('focus2'); });
+  } else {
+    hideFocusBtn();
+  }
+}
+
+/* ---- 원/포물선 그래프 그리기 ---- */
+var popGraphWrap = document.getElementById('pop-graph-wrap');
+var popGraphCanvas = document.getElementById('pop-graph');
+var popGraphCtx = popGraphCanvas.getContext('2d');
+var popSlider = document.getElementById('pop-slider');
+var popSliderVal = document.getElementById('pop-slider-val');
+var popSliderName = document.getElementById('pop-slider-name');
+var currentShapeParam = null;
+
+function drawCircleDiagram(r){
+  var W=popGraphCanvas.width,H=popGraphCanvas.height,cx=W/2,cy=H/2;
+  var scale=(Math.min(W,H)/2-18)/Math.max(r*1.15, 0.05);
+  popGraphCtx.clearRect(0,0,W,H);
+  popGraphCtx.strokeStyle='rgba(255,255,255,0.25)'; popGraphCtx.lineWidth=1;
+  popGraphCtx.beginPath(); popGraphCtx.moveTo(0,cy); popGraphCtx.lineTo(W,cy); popGraphCtx.moveTo(cx,0); popGraphCtx.lineTo(cx,H); popGraphCtx.stroke();
+  popGraphCtx.strokeStyle='#6fd3ff'; popGraphCtx.lineWidth=2.5;
+  popGraphCtx.beginPath(); popGraphCtx.arc(cx,cy,Math.max(r,0.05)*scale,0,Math.PI*2); popGraphCtx.stroke();
+  popGraphCtx.fillStyle='#ffd166'; popGraphCtx.font='bold 12px sans-serif'; popGraphCtx.textAlign='left';
+  popGraphCtx.fillText('x² + y² = ' + (r*r).toFixed(2), 8, 16);
+}
+// p 값의 크기(안테나 ~1, 전조등 ~0.05)에 관계없이 곡선이 항상 캔버스에 알맞게 보이도록
+// 축 범위를 p에 비례해 자동으로 스케일함 (상대적 모양은 동일하게 유지).
+// v7: 예전에는 축 눈금을 p에 맞춰 자동으로 늘려서(auto-scale) p를 아무리 바꿔도 그래프 모양이
+// 거의 그대로였음. 이제는 눈금을 고정해서 p가 작으면 뾰족하게, 크면 넓게 벌어지는 게 바로 보임.
+// 초점 F와 준선(x = -p)도 같이 그려서 "초점과 준선까지의 거리가 같다"는 정의가 드러나게 함.
+// 눈금은 "그 이차곡선이 쓰는 p의 최댓값"에 맞춰 한 번만 정하고, 슬라이더를 움직이는 동안에는
+// 고정된다. (곡선마다 p의 크기가 크게 다르기 때문에 최댓값 기준으로 잡아야 셋 다 잘 보임)
+var paraAxisP = 0.6;
+function setParabolaAxis(maxP){ paraAxisP = Math.max(maxP || 0.6, 0.05); }
+function drawParabolaDiagram(p){
+  var W=popGraphCanvas.width,H=popGraphCanvas.height;
+  var pp = Math.max(p,0.005);
+  var PARA_XMAX = 4.0*paraAxisP, PARA_YMAX = 2.6*paraAxisP, PARA_LEFT = 1.15*paraAxisP;
+  var cy = H/2;
+  var scale = Math.min((W-56)/(PARA_XMAX+PARA_LEFT), (H-24)/(2*PARA_YMAX));
+  var cx = 30 + PARA_LEFT*scale;    // 준선이 화면 안에 들어오도록 원점을 오른쪽으로 살짝 밀어둠
+  popGraphCtx.clearRect(0,0,W,H);
+  // 축
+  popGraphCtx.strokeStyle='rgba(255,255,255,0.25)'; popGraphCtx.lineWidth=1;
+  popGraphCtx.beginPath(); popGraphCtx.moveTo(0,cy); popGraphCtx.lineTo(W,cy);
+  popGraphCtx.moveTo(cx,0); popGraphCtx.lineTo(cx,H); popGraphCtx.stroke();
+  // 준선 x = -p
+  var dx = cx - pp*scale;
+  popGraphCtx.strokeStyle='rgba(255,120,120,0.9)'; popGraphCtx.lineWidth=1.6;
+  popGraphCtx.setLineDash([5,4]);
+  popGraphCtx.beginPath(); popGraphCtx.moveTo(dx,6); popGraphCtx.lineTo(dx,H-6); popGraphCtx.stroke();
+  popGraphCtx.setLineDash([]);
+  // 포물선 y² = 4px  (눈금 고정)
+  popGraphCtx.strokeStyle='#6fd3ff'; popGraphCtx.lineWidth=2.6; popGraphCtx.beginPath();
+  var first=true;
+  for(var i=0;i<=120;i++){
+    var yy = -PARA_YMAX + (2*PARA_YMAX)*(i/120);
+    var xx = (yy*yy)/(4*pp);
+    if(xx > PARA_XMAX){ first=true; continue; }   // 화면 밖은 끊어서 그림
+    var sx = cx + xx*scale, sy = cy - yy*scale;
+    if(first){ popGraphCtx.moveTo(sx,sy); first=false; } else popGraphCtx.lineTo(sx,sy);
+  }
+  popGraphCtx.stroke();
+  // 초점 F
+  var fx = cx + pp*scale;
+  popGraphCtx.fillStyle='#ffd166';
+  popGraphCtx.beginPath(); popGraphCtx.arc(fx,cy,4.5,0,Math.PI*2); popGraphCtx.fill();
+  popGraphCtx.font='bold 12px sans-serif'; popGraphCtx.textAlign='left';
+  popGraphCtx.fillStyle='#ffd166'; popGraphCtx.fillText('F', fx+6, cy-7);
+  popGraphCtx.fillStyle='rgba(255,150,150,0.95)'; popGraphCtx.fillText('준선', Math.max(dx-30,2), 15);
+  popGraphCtx.fillStyle='#6fd3ff'; popGraphCtx.textAlign='right';
+  popGraphCtx.fillText('y² = 4 · '+p.toFixed(2)+' · x', W-8, 16);
+  popGraphCtx.textAlign='left';
+}
+popSlider.addEventListener('input', function(){
+  if(!currentShapeParam) return;
+  var v = parseFloat(popSlider.value);
+  currentShapeParam.value = v;
+  popSliderVal.textContent = v < 1 ? v.toFixed(3) : v.toFixed(2);
+  if(currentShapeParam.kind==='circle') drawCircleDiagram(v); else drawParabolaDiagram(v);
+  if(currentShapeParam.apply) currentShapeParam.apply(v);
+});
+
+/* ---- 마이크 슬라이더(각도->음량, 회전) ---- */
+var popMicWrap = document.getElementById('pop-mic-wrap');
+var micSlider = document.getElementById('mic-slider');
+var volumeMeterFg = document.getElementById('volume-meter-fg');
+var currentMicConic = null;
+// 슬라이더를 한 바퀴(-180°~180°) 전부 쓸 수 있게 해서, 트랙을 도는 선수가 어디에 있든 마이크로 조준할 수 있게 함.
+// 실제 정렬도(마이크가 선수를 얼마나 정확히 향하는지)에 따른 음량은 매 프레임 updateSchoolRunner()에서 반영됨.
+micSlider.addEventListener('input', function(){
+  if(!currentMicConic) return;
+  var t = parseFloat(micSlider.value)/100; // 0..1
+  var rel = (t-0.5)*Math.PI*2; // -π..π
+  currentMicConic.micRig.rotation.y = rel;
+  if(SCHOOL_RUNNER) MIC_AIM.angle = SCHOOL_RUNNER.baseAngle + rel;
+});
+
+// 운동장을 도는 선수 위치 갱신 + 마이크 조준 방향과의 정렬도 계산.
+// 정렬도가 높을수록(마이크가 선수 쪽을 정확히 향할수록) 말풍선 이펙트가 커지고, 팝업이 열려있으면 실제 음량도 커짐.
+function updateSchoolRunner(dt, t){
+  if(!SCHOOL_RUNNER) return;
+  SCHOOL_RUNNER.angle += dt*SCHOOL_RUNNER.speed;
+  var rx = SCHOOL_RUNNER.a*Math.cos(SCHOOL_RUNNER.angle);
+  var rz = SCHOOL_RUNNER.b*Math.sin(SCHOOL_RUNNER.angle);
+  SCHOOL_RUNNER.mesh.position.set(rx, 0, SCHOOL_RUNNER.cz+rz);
+  var tangentAng = Math.atan2(-SCHOOL_RUNNER.a*Math.sin(SCHOOL_RUNNER.angle), SCHOOL_RUNNER.b*Math.cos(SCHOOL_RUNNER.angle));
+  SCHOOL_RUNNER.mesh.rotation.y = tangentAng;
+
+  if(MIC_AIM.worldPos){
+    var rlx = rx, rlz = SCHOOL_RUNNER.cz + rz; // 로컬 좌표 (그룹 회전 전)
+    var worldRx = NODES.schoolGate.x - rlz, worldRz = NODES.schoolGate.z + rlx; // 그룹 회전(-90도) 반영
+    var dx = worldRx - MIC_AIM.worldPos.x, dz = worldRz - MIC_AIM.worldPos.z;
+    var bearing = Math.atan2(dx,dz) - SCHOOL_ROT; // MIC_AIM.angle은 로컬 기준이므로 월드 방위각을 로컬로 환산
+    var diff = Math.atan2(Math.sin(bearing-MIC_AIM.angle), Math.cos(bearing-MIC_AIM.angle));
+    var align = Math.max(0, Math.cos(diff));
+    micAlignment = align*align;
+  }
+
+  var pulse = 0.85 + Math.sin(t*6)*0.15;
+  var s = (0.4 + micAlignment*1.1) * pulse;
+  SCHOOL_RUNNER.effectGroup.scale.set(s,s,s);
+  SCHOOL_RUNNER.effectGroup.children.forEach(function(m){ m.material.opacity = 0.1 + micAlignment*0.55; });
+
+  if(currentMicConic && currentMicConic.isMic){
+    volumeMeterFg.style.width = (micAlignment*100)+'%';
+    if(micVoice) micVoice.gain.gain.value = micAlignment*0.55;
+  }
+}
+
+/* ---- 반사망원경: 부경 위치에 따른 초점 정렬 + 은하수 관측 화면 ---- */
+var popSkyWrap = document.getElementById('pop-sky-wrap');
+var popSkyCanvas = document.getElementById('pop-sky-canvas');
+var popSkyCtx = popSkyCanvas ? popSkyCanvas.getContext('2d') : null;
+var popSkyStatus = document.getElementById('pop-sky-status');
+var teleSlider = document.getElementById('tele-slider');
+var teleValEl = document.getElementById('tele-val');
+// 은하수 밤하늘 (사진 대신 캔버스로 그림 -- 파일 하나로 끝나야 하므로)
+var milkyWayDrawn = false;
+function drawMilkyWay(){
+  if(!popSkyCtx || milkyWayDrawn) return;
+  milkyWayDrawn = true;
+  var W = popSkyCanvas.width, H = popSkyCanvas.height;
+  var ctx = popSkyCtx;
+  // 하늘 바탕
+  var sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#080b22'); sky.addColorStop(0.55,'#141a3a'); sky.addColorStop(0.82,'#3a2b46'); sky.addColorStop(1,'#7b4a2a');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
+  // 은하수 띠 (왼쪽 위 -> 오른쪽 아래로 비스듬히)
+  ctx.save();
+  ctx.translate(W*0.5, H*0.34); ctx.rotate(-0.28);
+  var band = ctx.createLinearGradient(0,-46,0,46);
+  band.addColorStop(0,'rgba(110,95,190,0)');
+  band.addColorStop(0.35,'rgba(150,135,225,0.30)');
+  band.addColorStop(0.5,'rgba(205,195,250,0.42)');
+  band.addColorStop(0.65,'rgba(150,135,225,0.30)');
+  band.addColorStop(1,'rgba(110,95,190,0)');
+  ctx.fillStyle = band; ctx.fillRect(-W, -46, W*2, 92);
+  // 성운 얼룩
+  for(var n=0;n<26;n++){
+    var nx = (Math.random()-0.5)*W*1.1, ny = (Math.random()-0.5)*64;
+    var rr = 8+Math.random()*26;
+    var gg = ctx.createRadialGradient(nx,ny,0,nx,ny,rr);
+    var warm = Math.random()<0.3;
+    gg.addColorStop(0, warm ? 'rgba(230,170,150,0.22)' : 'rgba(190,180,255,0.20)');
+    gg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(nx,ny,rr,0,Math.PI*2); ctx.fill();
+  }
+  // 암흑 성운 (은하수 가운데 어두운 띠)
+  for(var m=0;m<14;m++){
+    var mx = (Math.random()-0.5)*W*1.05, my = (Math.random()-0.5)*30;
+    var mr = 6+Math.random()*20;
+    var dg = ctx.createRadialGradient(mx,my,0,mx,my,mr);
+    dg.addColorStop(0,'rgba(12,10,28,0.5)'); dg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  // 별
+  for(var i=0;i<900;i++){
+    var x = Math.random()*W;
+    var y = Math.pow(Math.random(),1.25)*H*0.86;
+    var inBand = Math.abs((y - (H*0.34 + (x-W*0.5)*0.285))) < 46;
+    if(!inBand && Math.random()<0.45) continue;
+    var r = Math.random()<0.93 ? Math.random()*0.85+0.25 : Math.random()*1.6+0.9;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,'+(0.3+Math.random()*0.7).toFixed(2)+')'; ctx.fill();
+  }
+  // 지평선 노을
+  var hz = ctx.createLinearGradient(0,H*0.74,0,H*0.92);
+  hz.addColorStop(0,'rgba(180,90,40,0)'); hz.addColorStop(1,'rgba(230,130,50,0.55)');
+  ctx.fillStyle = hz; ctx.fillRect(0,H*0.74,W,H*0.2);
+  // 능선 + 나무 실루엣 (참고 사진처럼)
+  ctx.fillStyle = '#080a10';
+  ctx.beginPath(); ctx.moveTo(0,H);
+  ctx.lineTo(0,H*0.90); ctx.quadraticCurveTo(W*0.14,H*0.80, W*0.26,H*0.885);
+  ctx.quadraticCurveTo(W*0.5,H*0.95, W*0.72,H*0.885);
+  ctx.quadraticCurveTo(W*0.88,H*0.85, W,H*0.90); ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
+  (function(){
+    var tx = W*0.52, ty = H*0.90;
+    ctx.strokeStyle='#080a10'; ctx.lineWidth=3.2;
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(tx,ty-24); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(tx, ty-30, 26, 12, 0, 0, Math.PI*2); ctx.fillStyle='#080a10'; ctx.fill();
+    for(var b=0;b<7;b++){
+      var ang = -Math.PI + (b/6)*Math.PI;
+      ctx.beginPath(); ctx.moveTo(tx,ty-22);
+      ctx.lineTo(tx+Math.cos(ang)*22, ty-30+Math.sin(ang)*9); ctx.lineWidth=2; ctx.stroke();
+    }
+  })();
+}
+function telescopeSharpness(d){
+  var mis = Math.abs((d + TELE.s) - TELE.fp);   // 두 초점 사이의 어긋난 거리
+  return Math.exp(-(mis/TELE.tol)*(mis/TELE.tol));
+}
+function applyTelescope(d){
+  TELE.d = d;
+  TELE.sharp = telescopeSharpness(d);
+  if(TELE.secondary) TELE.secondary.position.y = d + 0.12;
+  if(TELE.sMark) TELE.sMark.position.y = d + TELE.s + 0.12;
+  if(popSkyCanvas){
+    var blur = (1 - TELE.sharp)*10;
+    popSkyCanvas.style.filter = 'blur(' + blur.toFixed(2) + 'px) brightness(' + (0.55 + TELE.sharp*0.55).toFixed(2) + ')';
+  }
+  if(popSkyStatus){
+    var pct = Math.round(TELE.sharp*100);
+    if(TELE.sharp > 0.93){
+      popSkyStatus.textContent = '🌌 초점이 딱 맞았어요! 은하수가 선명하게 보입니다 (' + pct + '%)';
+      popSkyStatus.className = 'sharp';
+    } else if(TELE.sharp > 0.55){
+      popSkyStatus.textContent = '조금만 더… 아직 살짝 흐려요 (' + pct + '%)';
+      popSkyStatus.className = '';
+    } else {
+      popSkyStatus.textContent = '흐릿해요 — 두 초점이 겹치도록 부경을 움직여보세요 (' + pct + '%)';
+      popSkyStatus.className = '';
+    }
+  }
+  if(teleValEl) teleValEl.textContent = d.toFixed(2);
+}
+if(teleSlider){
+  teleSlider.addEventListener('input', function(){ applyTelescope(parseFloat(teleSlider.value)); });
+}
+
+/* ---- 팝업 열기/닫기 ---- */
+function openConicPopup(conic){
+  document.getElementById('pop-kind').textContent = conic.type;
+  document.getElementById('pop-title').textContent = conic.name;
+  document.getElementById('pop-eq').innerHTML = conic.eq;
+  document.getElementById('pop-desc').textContent = conic.desc;
+  document.getElementById('pop-pts').textContent = conic.found ? '이미 발견했어요! (+' + conic.points + '점 획득함)' : '+' + conic.points + '점 획득!';
+
+  popGraphWrap.classList.remove('show');
+  popMicWrap.classList.remove('show');
+  popupOverlay.classList.remove('side');
+  var solarReadout = document.getElementById('solar-readout');
+  if(solarReadout) solarReadout.classList.toggle('show', conic.id === 'parabola_solar');
+  if(conic.id === 'parabola_solar') updateSolarHint();
+  if(popSkyWrap) popSkyWrap.classList.remove('show');
+  stopMicAudio();
+  resumeStoppedCar();
+  currentShapeParam = null; currentMicConic = null;
+
+  if(conic.isMic){
+    popMicWrap.classList.add('show');
+    currentMicConic = conic;
+    micSlider.value = 50;
+    conic.micRig.rotation.y = 0;
+    if(SCHOOL_RUNNER) MIC_AIM.angle = SCHOOL_RUNNER.baseAngle;
+    volumeMeterFg.style.width = '100%';
+    micVoice = createLoopVoice(420, 1.1);
+    if(micVoice) micVoice.gain.gain.value = 0.55;
+  } else if(conic.isTelescope){
+    if(popSkyWrap) popSkyWrap.classList.add('show');
+    drawMilkyWay();
+    if(teleSlider) teleSlider.value = TELE.d;
+    applyTelescope(TELE.d);
+  } else if(conic.shapeParam){
+    popGraphWrap.classList.add('show');
+    currentShapeParam = conic.shapeParam;
+    popSlider.min = conic.shapeParam.min;
+    popSlider.max = conic.shapeParam.max;
+    popSlider.step = conic.shapeParam.step;
+    popSlider.value = conic.shapeParam.value;
+    popSliderVal.textContent = conic.shapeParam.value < 1 ? conic.shapeParam.value.toFixed(3) : conic.shapeParam.value.toFixed(2);
+    popSliderName.textContent = conic.shapeParam.kind==='circle' ? 'r' : 'p';
+    if(conic.shapeParam.kind==='circle') drawCircleDiagram(conic.shapeParam.value);
+    else { setParabolaAxis(conic.shapeParam.max); drawParabolaDiagram(conic.shapeParam.value); }
+  }
+  popupOverlay.classList.add('show');
+}
+document.getElementById('pop-close').addEventListener('click', function(){
+  popupOverlay.classList.remove('show');
+  stopMicAudio();
+  resumeStoppedCar();
+});
+
+function findConicAncestor(obj){
+  var o = obj;
+  while(o){
+    if(o.userData && o.userData.conicId) return o.userData.conicId;
+    if(o.userData && o.userData.isCarHeadlight) return { carHeadlight:true, carId:o.userData.carId };
+    o = o.parent;
+  }
+  return null;
+}
+
+function onPick(clientX, clientY){
+  var rect = renderer.domElement.getBoundingClientRect();
+  mouseNDC.x = ((clientX-rect.left)/rect.width)*2-1;
+  mouseNDC.y = -((clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouseNDC, camera);
+  var targets = [];
+  conics.forEach(function(c){ targets.push(c.mesh); });
+  carHeadlightMeshes.forEach(function(h){ targets.push(h); });
+  var intersects = raycaster.intersectObjects(targets, true);
+  if(intersects.length===0) return;
+  var hitObj = intersects[0].object;
+  var result = findConicAncestor(hitObj);
+  if(!result) return;
+  if(typeof result === 'string'){
+    var conic = conics.filter(function(c){return c.id===result;})[0];
+    if(conic){
+      if(!conic.found){
+        conic.found = true;
+        score += conic.points;
+        updateScoreUI();
+        var row = document.getElementById('row-'+conic.id);
+        if(row) row.classList.add('found');
+        var allFound = conics.every(function(c){return c.found;});
+        if(allFound){
+          completeBannerEl.classList.add('show');
+          setTimeout(function(){ completeBannerEl.classList.remove('show'); }, 5000);
+        }
+      }
+      openConicPopup(conic);
+    }
+  } else if(result.carHeadlight){
+    var pts = foundCarSet[result.carId] ? 15 : 40;
+    foundCarSet[result.carId] = true;
+    score += pts;
+    updateScoreUI();
+    var carG = carsById[result.carId];
+    var solarRo = document.getElementById('solar-readout');
+    if(solarRo) solarRo.classList.remove('show');
+    document.getElementById('pop-kind').textContent = '포물선';
+    document.getElementById('pop-title').textContent = '자동차 전조등 반사경';
+    document.getElementById('pop-eq').innerHTML = 'x  =  ' + frac('y²','4p') + '   (반사판 초점거리 p)';
+    document.getElementById('pop-desc').textContent = '전조등 속 오목한 반사판은 포물선을 축 둘레로 회전시킨 모양(포물면)이에요. 전구를 정확히 초점에 놓으면 거기서 나온 빛이 반사판에 부딪혀 전부 축과 평행하게 뻗어나가요 — 이게 포물선의 반사 성질입니다. 슬라이더로 p(초점거리)를 바꿔보세요. p가 작으면 반사판이 깊게 파여 전구를 감싸듯 둘러싸므로 빛을 아주 많이 모아 밝지만, 전구가 점이 아니라 크기가 있어서 빛이 넓게 퍼져요. p가 크면 반사판이 얕아져 모이는 빛의 양은 줄지만 훨씬 좁고 멀리 뻗는 빛줄기가 됩니다. 반사판 안의 하얀 전구가 초점을 따라 앞뒤로 움직이는 것도 같이 확인해보세요!';
+    document.getElementById('pop-pts').textContent = '+' + pts + '점 획득!';
+    popMicWrap.classList.remove('show');
+    stopMicAudio(); currentMicConic = null;
+    resumeStoppedCar(); // 이전에 다른 자동차를 멈춰뒀다면 다시 움직이게 함
+    if(carG){
+      carG.userData.stopped = true; // 슬라이더로 반사판 모양이 바뀌는 걸 잘 관찰하도록 이 차는 정지
+      stoppedCarId = result.carId;
+      popGraphWrap.classList.add('show');
+      currentShapeParam = {
+        kind:'parabola', value: carG.userData.headlightP, min:0.05, max:0.60, step:0.01,
+        apply: function(p){ updateHeadlightPhysics(carG, p); }
+      };
+      popSlider.min = currentShapeParam.min; popSlider.max = currentShapeParam.max; popSlider.step = currentShapeParam.step;
+      popSlider.value = currentShapeParam.value;
+      popSliderVal.textContent = currentShapeParam.value.toFixed(3);
+      popSliderName.textContent = 'p';
+      setParabolaAxis(currentShapeParam.max);
+      drawParabolaDiagram(currentShapeParam.value);
+    } else {
+      popGraphWrap.classList.remove('show');
+      currentShapeParam = null;
+    }
+    popupOverlay.classList.add('show');
+  }
+}
+
+/* ---- 포인터: 드래그=카메라 회전, 짧은 탭/클릭=이차곡선 선택 ---- */
+// 아이패드 등 터치 기기 대응 (v7 수정판):
+//  - 짧게 톡 치면        -> 이차곡선 선택(클릭)
+//  - 끌었다가 금방 떼면   -> 시점(카메라) 회전
+//  - 끌고 나서 계속 누르고 있으면 -> 그 지점을 중심으로 한 가상 조이스틱이 켜지고 그 방향으로 이동
+// v6에서는 "손가락이 멈춰 있을 때만" 이동 모드로 바뀌어서, 끌면서 누르고 있으면 영영 이동이 안 됐음.
+// 이제는 손가락을 계속 대고 있기만 하면(움직이든 말든) HOLD_MS 뒤에 이동 모드로 전환됨.
+var HOLD_MS = 300, HOLD_MOVE_DEADZONE = 14, JOY_MAX = 70, TAP_SLOP = 8;
+var touchMoveMode = false, holdTimer = null, holdStartX = 0, holdStartY = 0;
+var activePointerId = null;   // 멀티터치에서 첫 손가락만 조작에 쓰도록 고정
+var joyEl = document.getElementById('joystick');
+var joyKnobEl = document.getElementById('joystick-knob');
+function clearTouchMove(){
+  touchMoveMode = false;
+  // 키보드로 누르고 있는 키까지 같이 풀어버리면 안 되므로 키보드 상태를 다시 반영
+  input.fwd = !!keyHeld.fwd; input.back = !!keyHeld.back;
+  input.left = !!keyHeld.left; input.right = !!keyHeld.right;
+  if(joyEl) joyEl.classList.remove('show');
+}
+function enterTouchMove(x, y){
+  touchMoveMode = true;
+  holdStartX = x; holdStartY = y;    // 손가락이 있는 바로 그 자리를 조이스틱 중심으로 삼음
+  if(joyEl){
+    joyEl.style.left = x + 'px';
+    joyEl.style.top = y + 'px';
+    joyEl.classList.add('show');
+    if(joyKnobEl) joyKnobEl.style.transform = 'translate(-50%,-50%)';
+  }
+}
+function updateJoystick(x, y){
+  var mdx = x - holdStartX, mdy = y - holdStartY;
+  input.fwd = mdy < -HOLD_MOVE_DEADZONE;
+  input.back = mdy > HOLD_MOVE_DEADZONE;
+  input.left = mdx < -HOLD_MOVE_DEADZONE;
+  input.right = mdx > HOLD_MOVE_DEADZONE;
+  if(joyKnobEl){
+    var d = Math.hypot(mdx,mdy);
+    if(d > JOY_MAX){ mdx = mdx/d*JOY_MAX; mdy = mdy/d*JOY_MAX; }
+    joyKnobEl.style.transform = 'translate(calc(-50% + '+mdx.toFixed(1)+'px), calc(-50% + '+mdy.toFixed(1)+'px))';
+  }
+}
+// --- 여러 손가락 추적 (핀치 확대/축소용) ---
+var activePointers = {};                 // pointerId -> {x, y}
+var pointerCount = 0;
+var pinch = { active:false, startDist:0, startRadius:12 };
+var suppressPick = false;                // 핀치 직후에는 탭(선택)으로 오인하지 않도록
+function pointerIds(){ return Object.keys(activePointers); }
+function pinchDistance(){
+  var ids = pointerIds();
+  if(ids.length < 2) return 0;
+  var a = activePointers[ids[0]], b = activePointers[ids[1]];
+  return Math.hypot(a.x-b.x, a.y-b.y);
+}
+function setZoom(r){
+  orbit.radius = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, r));
+  zoomSlider.value = orbit.radius;
+}
+function startPinch(){
+  // 두 번째 손가락이 닿는 순간: 걷기/시점회전을 즉시 멈추고 확대·축소 모드로
+  clearTimeout(holdTimer);
+  if(touchMoveMode) clearTouchMove();
+  orbit.dragging = false;
+  suppressPick = true;
+  pinch.active = true;
+  pinch.startDist = pinchDistance();
+  pinch.startRadius = orbit.radius;
+}
+function endPointer(){
+  clearTimeout(holdTimer);
+  if(touchMoveMode) clearTouchMove();
+  orbit.dragging = false;
+  activePointerId = null;
+}
+renderer.domElement.addEventListener('pointerdown', function(e){
+  var pid = (e.pointerId === undefined) ? 'x' : e.pointerId;
+  if(!activePointers[pid]) pointerCount++;
+  activePointers[pid] = { x:e.clientX, y:e.clientY };
+  if(pointerCount >= 2){ startPinch(); return; }
+
+  if(activePointerId !== null) return;
+  activePointerId = pid;
+  orbit.dragging = true; orbit.moved = false;
+  suppressPick = false;
+  orbit.lastX = e.clientX; orbit.lastY = e.clientY;
+  holdStartX = e.clientX; holdStartY = e.clientY;
+  clearTimeout(holdTimer);
+  // 마우스로는 오래 눌러도 이동 모드로 안 들어가게 함. (마우스는 길게 누른 클릭이 흔해서
+  // 이동 모드로 바뀌면 이차곡선 클릭이 먹통이 됨. PC는 방향키/WASD로 걷는다.)
+  if(e.pointerType === 'mouse') return;
+  holdTimer = setTimeout(function(){
+    // 손가락을 계속 대고 있으면(끌고 있든 멈춰 있든) 이동 모드로 전환.
+    // 단, 설명 팝업이나 진입 확인창이 떠 있을 때는 이동시키지 않음.
+    if(popupOverlay.classList.contains('show') || promptOverlay.classList.contains('show')) return;
+    if(pointerCount >= 2) return;
+    if(orbit.dragging) enterTouchMove(orbit.lastX, orbit.lastY);
+  }, HOLD_MS);
+});
+window.addEventListener('pointermove', function(e){
+  var pid = (e.pointerId === undefined) ? 'x' : e.pointerId;
+  if(activePointers[pid]) activePointers[pid] = { x:e.clientX, y:e.clientY };
+
+  // 두 손가락으로 벌리면 확대, 오므리면 축소 (아이패드에서 가장 자연스러운 조작)
+  if(pinch.active && pointerCount >= 2){
+    var d = pinchDistance();
+    if(d > 4 && pinch.startDist > 4) setZoom(pinch.startRadius * (pinch.startDist/d));
+    return;
+  }
+  if(activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
+  if(touchMoveMode){ updateJoystick(e.clientX, e.clientY); return; }
+  if(!orbit.dragging){ return; }
+  // "탭인지 드래그인지"는 누르기 시작한 지점에서 얼마나 멀어졌는지로 판단해야 함.
+  // (직전 이벤트와의 차이로 재면 천천히 길게 끌었을 때 탭으로 오인됨)
+  if(Math.hypot(e.clientX-holdStartX, e.clientY-holdStartY) > TAP_SLOP) orbit.moved = true;
+  var dx = e.clientX - orbit.lastX, dy = e.clientY - orbit.lastY;
+  orbit.azimuth -= dx*0.007;
+  orbit.pitch = Math.max(0.12, Math.min(1.45, orbit.pitch + dy*0.007));
+  orbit.lastX = e.clientX; orbit.lastY = e.clientY;
+});
+function releasePointer(e, doPick){
+  var pid = (e && e.pointerId === undefined) ? 'x' : (e ? e.pointerId : null);
+  var tracked = (pid !== null && activePointers[pid] !== undefined);
+  // HUD 버튼처럼 캔버스 밖에서 시작한 손가락을 뗀 것이라면, 걷고 있던 손가락을 건드리면 안 됨
+  if(!tracked && pointerCount > 0) return;
+  if(tracked){ delete activePointers[pid]; pointerCount = Math.max(0, pointerCount-1); }
+  if(pinch.active && pointerCount < 2){
+    pinch.active = false;
+    // 남은 손가락 하나로 곧바로 시점이 홱 돌지 않도록 기준점을 다시 잡아줌
+    var ids = pointerIds();
+    if(ids.length === 1){
+      orbit.lastX = activePointers[ids[0]].x; orbit.lastY = activePointers[ids[0]].y;
+      holdStartX = orbit.lastX; holdStartY = orbit.lastY;
+      activePointerId = ids[0];
+      orbit.dragging = true; orbit.moved = true;   // 핀치 뒤에는 탭으로 치지 않음
+    }
+  }
+  if(pointerCount === 0){
+    var wasMove = touchMoveMode, wasDrag = orbit.dragging, moved = orbit.moved, blocked = suppressPick;
+    endPointer();
+    suppressPick = false;
+    if(doPick && !blocked && !wasMove && wasDrag && !moved && e) onPick(e.clientX, e.clientY);
+  }
+}
+window.addEventListener('pointerup', function(e){ releasePointer(e, true); });
+window.addEventListener('pointercancel', function(e){ releasePointer(e, false); });
+// 창을 벗어나거나 탭이 가려진 채 손을 떼면 pointerup 을 못 받아 계속 걸어가는 일이 생김 -> 안전장치
+function resetAllPointers(){
+  activePointers = {}; pointerCount = 0; pinch.active = false; suppressPick = false;
+  endPointer();
+}
+window.addEventListener('blur', resetAllPointers);
+document.addEventListener('visibilitychange', function(){ if(document.hidden) resetAllPointers(); });
+// 브라우저 자체 확대(사파리 핀치·더블탭) 때문에 화면이 통째로 커지는 것 방지
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, {passive:false});
+document.addEventListener('gesturechange', function(e){ e.preventDefault(); }, {passive:false});
+renderer.domElement.addEventListener('wheel', function(e){
+  e.preventDefault();
+  setZoom(orbit.radius + e.deltaY*0.02);
+}, {passive:false});
+// 확대/축소 버튼 (한 번 누르면 한 단계, 꾹 누르면 계속)
+(function(){
+  [['zoom-in',-1],['zoom-out',1]].forEach(function(cfg){
+    var el = document.getElementById(cfg[0]);
+    if(!el) return;
+    var timer = null;
+    function step(){ setZoom(orbit.radius + cfg[1]*2.2); }
+    function start(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      step();
+      clearInterval(timer);
+      timer = setInterval(step, 90);
+    }
+    function stop(ev){ if(ev) ev.stopPropagation(); clearInterval(timer); timer = null; }
+    el.addEventListener('pointerdown', start);
+    el.addEventListener('pointerup', stop);
+    el.addEventListener('pointerleave', stop);
+    el.addEventListener('pointercancel', stop);
+  });
+})();
+
+/* ============================================================
+   18. 진입 확인 모달 (콘란샵 / 단대부고 정문)
+============================================================ */
+var entryPromptTitleEl = document.getElementById('entry-prompt-title');
+var pendingPromptAction = null;
+function showEntryPrompt(text, onYes, onNo){
+  entryPromptTitleEl.textContent = text;
+  pendingPromptAction = { onYes:onYes, onNo:onNo };
+  promptOverlay.classList.add('show');
+}
+document.getElementById('entry-yes').addEventListener('click', function(){
+  promptOverlay.classList.remove('show');
+  var a = pendingPromptAction; pendingPromptAction = null;
+  if(a && a.onYes) a.onYes();
+});
+document.getElementById('entry-no').addEventListener('click', function(){
+  promptOverlay.classList.remove('show');
+  var a = pendingPromptAction; pendingPromptAction = null;
+  if(a && a.onNo) a.onNo();
+});
+
+function pushPlayerAway(tx, tz, dist){
+  var dx = player.position.x-tx, dz = player.position.z-tz;
+  var len = Math.hypot(dx,dz)||1;
+  player.position.x = tx + dx/len*dist;
+  player.position.z = tz + dz/len*dist;
+}
+
+var conranTrigger = { x: conranEntranceOutside.x, z: conranEntranceOutside.z, radius:5.5, armed:true };
+var exitInteriorBtn = document.getElementById('exit-interior-btn');
+
+var OUTSIDE_FOG = { color: scene.fog.color.getHex(), near: scene.fog.near, far: scene.fog.far, bg: scene.background.getHex() };
+var INTERIOR_FOG_COLOR = 0xe4d7ae;
+
+var savedOutsideRadius = null;
+function enterConran(){
+  savedOutsidePos = { x:player.position.x, z:player.position.z, ry:player.rotation.y };
+  player.position.set(CONRAN_INTERIOR.x, 0, CONRAN_INTERIOR.z+7.5);
+  player.rotation.y = Math.PI;
+  zone = 'conran';
+  exitInteriorBtn.classList.add('show');
+  startWhisperAmbient();
+  // 확대하지 않아도 확실히 "실내에 있다"는 걸 알 수 있도록, 밖에서 쓰던 줌 값과 무관하게
+  // 방 전체가 한눈에 들어오는 고정 줌으로 강제 전환(밖으로 나가면 원래 줌으로 복귀)
+  savedOutsideRadius = orbit.radius;
+  orbit.radius = 15;
+  zoomSlider.value = orbit.radius;
+  // 바깥이 안 보이도록 실내 전용 안개/배경으로 전환 (밖은 멀리 떨어져 있어 렌더는 되지만 안개로 완전히 가려짐)
+  scene.fog.color.setHex(INTERIOR_FOG_COLOR);
+  scene.fog.near = 2;
+  scene.fog.far = 42;
+  scene.background.setHex(INTERIOR_FOG_COLOR);
+}
+function exitConran(){
+  if(savedOutsidePos){
+    player.position.set(savedOutsidePos.x, 0, savedOutsidePos.z);
+    player.rotation.y = savedOutsidePos.ry;
+  }
+  zone = 'outside';
+  exitInteriorBtn.classList.remove('show');
+  hideFocusBtn();
+  stopWhisperAmbient();
+  conranTrigger.armed = false;
+  if(savedOutsideRadius!=null){ orbit.radius = savedOutsideRadius; zoomSlider.value = orbit.radius; savedOutsideRadius = null; }
+  scene.fog.color.setHex(OUTSIDE_FOG.color);
+  scene.fog.near = OUTSIDE_FOG.near;
+  scene.fog.far = OUTSIDE_FOG.far;
+  scene.background.setHex(OUTSIDE_FOG.bg);
+}
+exitInteriorBtn.addEventListener('click', exitConran);
+
+function checkTriggers(){
+  if(!started || zone!=='outside') return;
+  if(popupOverlay.classList.contains('show') || promptOverlay.classList.contains('show')) return;
+
+  var dConran = Math.hypot(player.position.x-conranTrigger.x, player.position.z-conranTrigger.z);
+  if(dConran < conranTrigger.radius){
+    if(conranTrigger.armed){
+      conranTrigger.armed = false;
+      showEntryPrompt('콘란샵 안으로 들어가시겠습니까?', enterConran, function(){
+        pushPlayerAway(conranTrigger.x, conranTrigger.z, 6.5);
+      });
+    }
+  } else if(dConran > conranTrigger.radius+4){
+    conranTrigger.armed = true;
+  }
+
+  checkBikeTriggers();
+
+  var dSchool = Math.hypot(player.position.x-schoolTrigger.x, player.position.z-schoolTrigger.z);
+  if(dSchool < schoolTrigger.radius){
+    if(schoolTrigger.armed && !schoolTrigger.confirmed){
+      schoolTrigger.armed = false;
+      showEntryPrompt('단대부고 안으로 들어가시겠습니까?', function(){
+        schoolTrigger.confirmed = true;
+      }, function(){
+        pushPlayerAway(schoolTrigger.x, schoolTrigger.z, 6.5);
+      });
+    }
+  } else if(dSchool > schoolTrigger.radius+4){
+    schoolTrigger.armed = true;
+  }
+}
+
+/* ---- 자전거 타기/내리기 + 밤 전조등 ---- */
+var bikePanelEl = document.getElementById('bike-panel');
+var bikeOffBtnEl = document.getElementById('bike-off-btn');
+var bikeSliderEl = document.getElementById('bike-slider');
+var bikePValEl = document.getElementById('bike-p-val');
+var bikeNearArmed = true;
+var bikeLightAsked = false;   // 이번 밤에 전조등을 켤지 이미 물어봤는가
+
+function mountBike(spot){
+  riding.active = true;
+  riding.spot = spot;
+  spot.taken = true;
+  spot.mesh.visible = false;
+  ridingBike.visible = true;
+  bikeOffBtnEl.classList.add('show');
+  bikeLightAsked = false;
+  updateBikeLight(BIKE_LIGHT.p);
+}
+function dismountBike(){
+  if(!riding.active) return;
+  var spot = riding.spot;
+  if(spot){
+    // 내린 자리에 자전거를 세워둔다
+    spot.mesh.position.set(player.position.x + Math.sin(player.rotation.y)*1.6, 0, player.position.z + Math.cos(player.rotation.y)*1.6);
+    spot.mesh.rotation.y = player.rotation.y + Math.PI/2;
+    spot.x = spot.mesh.position.x; spot.z = spot.mesh.position.z;
+    spot.mesh.visible = true;
+    spot.taken = false;
+  }
+  riding.active = false; riding.spot = null; riding.headlightOn = false;
+  ridingBike.visible = false;
+  bikeOffBtnEl.classList.remove('show');
+  bikePanelEl.classList.remove('show');
+  updateBikeLight(BIKE_LIGHT.p);
+  bikeNearArmed = false;   // 내리자마자 다시 "탈래?" 창이 뜨지 않도록
+}
+if(bikeOffBtnEl) bikeOffBtnEl.addEventListener('click', dismountBike);
+if(bikeSliderEl){
+  bikeSliderEl.addEventListener('input', function(){
+    var p = parseFloat(bikeSliderEl.value);
+    if(bikePValEl) bikePValEl.textContent = p.toFixed(3);
+    updateBikeLight(p);
+  });
+}
+function checkBikeTriggers(){
+  if(riding.active){
+    // 밤이 되면 한 번만 전조등을 켤지 물어봄
+    if(isNight && !riding.headlightOn && !bikeLightAsked){
+      bikeLightAsked = true;
+      showEntryPrompt('어두워졌어요. 자전거 전조등을 켜시겠습니까?', function(){
+        riding.headlightOn = true;
+        bikePanelEl.classList.add('show');
+        if(bikeSliderEl) bikeSliderEl.value = BIKE_LIGHT.p;
+        updateBikeLight(BIKE_LIGHT.p);
+      }, null);
+    }
+    // 다시 밝은 낮이 되면 전조등은 자동으로 꺼지고 속도는 1.5배로 복귀
+    if(!isNight && riding.headlightOn){
+      riding.headlightOn = false;
+      bikePanelEl.classList.remove('show');
+      updateBikeLight(BIKE_LIGHT.p);
+    }
+    if(!isNight) bikeLightAsked = false;
+    return;
+  }
+  // 가까운 자전거 찾기
+  var near = null, nd = 4.2;
+  for(var i=0;i<BIKE_SPOTS.length;i++){
+    var sp = BIKE_SPOTS[i];
+    if(sp.taken) continue;
+    var d = Math.hypot(player.position.x-sp.x, player.position.z-sp.z);
+    if(d < nd){ nd = d; near = sp; }
+  }
+  if(near){
+    if(bikeNearArmed){
+      bikeNearArmed = false;
+      showEntryPrompt('자전거를 타시겠습니까?', function(){ mountBike(near); }, null);
+    }
+  } else {
+    bikeNearArmed = true;
+  }
+}
+
+/* ============================================================
+   19. 위치 라벨(힌트) 업데이트
+============================================================ */
+var locLabelEl = document.getElementById('loc-label');
+var zonesForLabel = [
+  {name:'한티역 사거리 부근', x:NODES.hanti.x, z:NODES.hanti.z, r:20},
+  {name:'한티역 부근', x:NODES.hantiStation.x, z:NODES.hantiStation.z-11, r:16},
+  {name:'롯데백화점 부근', x:NODES.lotte.x, z:NODES.lotte.z+20, r:22},
+  {name:'콘란샵 부근', x:conranEntranceOutside.x, z:conranEntranceOutside.z, r:14},
+  {name:'단대부고 부근', x:NODES.schoolGate.x-25, z:NODES.schoolGate.z, r:30},
+  {name:'래미안대치팰리스 부근', x:raemian.position.x, z:raemian.position.z, r:24},
+  {name:'대치아이파크(집) 부근', x:ipark.position.x, z:ipark.position.z, r:24},
+  {name:'대치자이 부근', x:NODES.iparkHome.x+15, z:NODES.iparkHome.z-25, r:24},
+  {name:'도곡역 부근', x:NODES.dogok.x, z:NODES.dogok.z, r:20},
+  {name:'태양열 집광장치 부근', x:SOLAR.x, z:SOLAR.z, r:16},
+];
+function updateLocationLabel(){
+  if(zone==='conran'){ locLabelEl.textContent = '콘란샵 - 속삭이는 회랑'; return; }
+  var best=null, bestD=Infinity;
+  zonesForLabel.forEach(function(z){
+    var d = Math.hypot(player.position.x-z.x, player.position.z-z.z);
+    if(d<z.r && d<bestD){ bestD=d; best=z.name; }
+  });
+  locLabelEl.textContent = best || '대치동 거리';
+}
+
+/* ============================================================
+   20. 이차곡선 은은한 애니메이션 (반짝임)
+============================================================ */
+var pulseObjs = [];
+scene.traverse(function(o){ if(o.userData && o.userData.pulse) pulseObjs.push(o); });
+
+/* ============================================================
+   20a2. 밤낮 주기 적용 (하늘·조명·가로등·창문 불빛)
+============================================================ */
+// 창문 텍스처를 쓰는 모든 재질을 한 번만 훑어서 "밤에 불이 켜지는 창문"으로 등록
+(function(){
+  scene.traverse(function(o){
+    if(!o.isMesh || !o.material || !o.material.map) return;
+    var ud = o.material.map.userData;
+    if(!ud || ud.isWindow !== true) return;
+    o.material.emissiveMap = o.material.map;
+    if(o.material.emissive && o.material.emissive.setHex) o.material.emissive.setHex(0xffffff);
+    o.material.emissiveIntensity = 0;
+    o.material.needsUpdate = true;
+    if(NIGHT_WINDOW_MATS.indexOf(o.material) < 0) NIGHT_WINDOW_MATS.push(o.material);
+  });
+})();
+
+var SKY_DAY_TOP = new THREE.Color(0x2f7fd6), SKY_DAY_BOT = new THREE.Color(0xeaf7ff);
+var SKY_DUSK_TOP = new THREE.Color(0x3b2f66), SKY_DUSK_BOT = new THREE.Color(0xe08a46);
+var SKY_NIGHT_TOP = new THREE.Color(0x04060f), SKY_NIGHT_BOT = new THREE.Color(0x121c33);
+var _cA = new THREE.Color(), _cB = new THREE.Color();
+function mix3(outC, night, dusk, day, f){
+  // f: 0=밤, 0.5=해질녘, 1=낮
+  if(f < 0.5){ outC.copy(night).lerp(dusk, f*2); }
+  else { outC.copy(dusk).lerp(day, (f-0.5)*2); }
+  return outC;
+}
+function updateDayNight(t){
+  dayFactor = computeDayFactor(t);
+  nightFactor = 1 - dayFactor;
+  isNight = dayFactor < 0.35;
+  var f = dayFactor;
+
+  hemi.intensity = 0.09 + 0.71*f;
+  sun.intensity = 0.04 + 1.21*f;
+  ambientLight.intensity = 0.05 + 0.23*f;
+  if(sunSprite) sunSprite.material.opacity = Math.max(0, f*0.95);
+  if(moonSprite) moonSprite.material.opacity = Math.max(0, (1-f)*0.9);
+  if(starDome) starDome.material.opacity = Math.pow(1-f, 1.6)*0.95;
+  if(skyMat){
+    mix3(_cA, SKY_NIGHT_TOP, SKY_DUSK_TOP, SKY_DAY_TOP, f);
+    mix3(_cB, SKY_NIGHT_BOT, SKY_DUSK_BOT, SKY_DAY_BOT, f);
+    skyMat.uniforms.top.value.copy(_cA);
+    skyMat.uniforms.bottom.value.copy(_cB);
+  }
+  if(zone === 'outside' && scene.fog){
+    mix3(_cA, SKY_NIGHT_BOT, SKY_DUSK_BOT, new THREE.Color(OUTSIDE_FOG.color), f);
+    scene.fog.color.copy(_cA);
+    if(scene.background && scene.background.copy) scene.background.copy(_cA);
+  }
+
+  // 도시 조명: 밤일수록, 그리고 태양열 집광 효율이 높을수록 밝게
+  var lit = Math.pow(1-f, 1.2) * cityPower;
+  for(var i=0;i<NIGHT_LAMPS.length;i++){
+    var L = NIGHT_LAMPS[i];
+    if(L.mesh && L.mesh.material) L.mesh.material.emissiveIntensity = lit*1.5;
+    if(L.glow) L.glow.material.opacity = lit*0.75;
+    if(L.pool) L.pool.material.opacity = lit*0.30;
+  }
+  for(var j=0;j<NIGHT_WINDOW_MATS.length;j++){
+    NIGHT_WINDOW_MATS[j].emissiveIntensity = lit*0.95;
+  }
+  // 자동차 전조등도 밤에 또렷해지도록
+  for(var k=0;k<cars.length;k++){
+    var base = cars[k].userData.hlBase;
+    if(!base) continue;
+    var m = 0.22 + 0.78*(1-f);
+    cars[k].userData.headlightGlow.intensity = base.glow*m;
+    cars[k].userData.headlightParts.forEach(function(part){
+      part.beam.material.opacity = base.core*m;
+      if(part.halo) part.halo.material.opacity = base.halo*m;
+    });
+    if(cars[k].userData.lightPool) cars[k].userData.lightPool.material.opacity = base.pool*m;
+  }
+}
+// 지금이 하루 중 언제인지 화면에 표시
+var timeBadgeEl = document.getElementById('time-badge');
+function updateTimeBadge(t){
+  if(!timeBadgeEl) return;
+  var p = t % CYCLE_LEN, txt, cls;
+  if(p < DAY_LEN){ txt='☀️ 낮'; cls='day'; }
+  else if(p < DAY_LEN+DUSK_LEN){ txt='🌇 해질녘'; cls='dusk'; }
+  else if(p < DAY_LEN+DUSK_LEN+NIGHT_LEN){ txt='🌙 밤'; cls='night'; }
+  else { txt='🌄 새벽'; cls='dusk'; }
+  timeBadgeEl.textContent = txt + ' · 도시 전력 ' + Math.round(cityPower*100) + '%';
+  timeBadgeEl.className = cls;
+}
+
+/* ============================================================
+   20b. 실시간 멀티플레이어 (Firebase, FIREBASE_CONFIG가 설정된 경우에만 동작)
+============================================================ */
+var mpDb = null, mpMyRef = null;
+var peers = {}; // studentId -> {mesh, tag, x, z, ry}
+// 화면 위쪽에 실시간 접속 상태를 보여줌 (선생님이 잘 연결됐는지 바로 확인할 수 있게)
+var mpStatusEl = document.getElementById('mp-status');
+var mpStatusTextEl = document.getElementById('mp-status-text');
+function setMpStatus(state, text){
+  if(!mpStatusEl) return;
+  mpStatusEl.classList.add('show');
+  mpStatusEl.classList.remove('live','off');
+  if(state) mpStatusEl.classList.add(state);
+  mpStatusTextEl.textContent = text;
+}
+function refreshMpCount(){
+  var n = Object.keys(peers).length + 1;   // 나 포함
+  setMpStatus('live', n > 1 ? ('🟢 지금 ' + n + '명 접속 중') : '🟢 접속됨 · 친구를 기다리는 중');
+}
+function loadScriptOnce(src){
+  return new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function initMultiplayer(){
+  if(!FIREBASE_CONFIG) return; // 설정 안 하면 네트워크 요청 없이 그대로 싱글플레이
+  setMpStatus(null, '실시간 접속하는 중...');
+  loadScriptOnce('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js')
+    .then(function(){ return loadScriptOnce('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'); })
+    .then(function(){
+      if(typeof firebase === 'undefined'){ setMpStatus('off', '⚪ 혼자 플레이 중 (접속 실패)'); return; }
+      firebase.initializeApp(FIREBASE_CONFIG);
+      mpDb = firebase.database();
+      mpMyRef = mpDb.ref('rooms/' + MULTIPLAYER_ROOM + '/players/' + STUDENT_ID);
+      mpMyRef.onDisconnect().remove();
+      broadcastMyPosition(1e9);   // 접속하자마자 내 위치를 한 번 올려서 다른 학생 화면에 바로 뜨게 함
+      refreshMpCount();
+      // 서버 연결이 끊기면 상태 표시도 같이 바뀌도록
+      mpDb.ref('.info/connected').on('value', function(c){
+        if(c.val() === true){ mpMyRef.onDisconnect().remove(); refreshMpCount(); }
+        else setMpStatus(null, '🟡 다시 연결하는 중...');
+      });
+      mpDb.ref('rooms/' + MULTIPLAYER_ROOM + '/players').on('value', function(snap){
+        var val = snap.val() || {};
+        var seen = {};
+        Object.keys(val).forEach(function(id){
+          if(id === STUDENT_ID) return;
+          seen[id] = true;
+          var d = val[id] || {};
+          if(!peers[id]){
+            var mesh = makeSimplePerson(0x2f6fd3, 0xffe0bd);
+            var tag = makeLabelSprite(d.name || '학생', {bg:'rgba(60,60,120,0.85)', fontSize:17});
+            tag.position.set(0,2.3,0);
+            mesh.add(tag);
+            mesh.position.set(d.x||0, 0, d.z||0);
+            world.add(mesh);
+            peers[id] = { mesh:mesh, tag:tag, x:d.x||0, z:d.z||0, ry:d.ry||0, name:null };
+          }
+          peers[id].x = d.x||0; peers[id].z = d.z||0; peers[id].ry = d.ry||0;
+          if(d.name && d.name !== peers[id].name){
+            peers[id].name = d.name;
+            updateLabelSprite(peers[id].tag, d.name, {bg:'rgba(60,60,120,0.85)', fontSize:17});
+          }
+        });
+        Object.keys(peers).forEach(function(id){
+          if(!seen[id]){ world.remove(peers[id].mesh); delete peers[id]; }
+        });
+        refreshMpCount();
+      });
+    })
+    .catch(function(err){
+      console.warn('멀티플레이어 연결 실패(오프라인으로 계속 진행):', err);
+      setMpStatus('off', '⚪ 혼자 플레이 중 (인터넷 연결 확인)');
+    });
+}
+function updatePeers(dt){
+  Object.keys(peers).forEach(function(id){
+    var p = peers[id];
+    var k = Math.min(1, dt*8);
+    p.mesh.position.x += (p.x - p.mesh.position.x) * k;
+    p.mesh.position.z += (p.z - p.mesh.position.z) * k;
+    p.mesh.rotation.y = p.ry;
+  });
+}
+var mpLastSend = -999;
+function broadcastMyPosition(t){
+  if(!mpMyRef) return;
+  if(t - mpLastSend < 0.25) return; // 0.25초마다 전송(트래픽 절약)
+  mpLastSend = (t >= 1e9) ? 0 : t;
+  // 콘란샵 실내에 있는 동안에는 실내 좌표(먼 구석) 대신, 들어가기 직전의 바깥 위치를 계속 보냄.
+  // 그래야 다른 학생 화면에서 갑자기 지도 밖으로 순간이동한 것처럼 보이지 않음.
+  var px = player.position.x, pz = player.position.z, pry = player.rotation.y;
+  if(zone !== 'outside' && savedOutsidePos){ px = savedOutsidePos.x; pz = savedOutsidePos.z; pry = savedOutsidePos.ry; }
+  mpMyRef.set({ name: PLAYER_NAME, x: px, z: pz, ry: pry, t: Date.now() });
+}
+
+/* ============================================================
+   20c. 도감 전송 + 나가기
+============================================================ */
+function buildDogamRecord(){
+  var foundList = conics.filter(function(c){ return c.found; }).map(function(c){ return c.name; });
+  return {
+    name: PLAYER_NAME, room: MULTIPLAYER_ROOM, studentId: STUDENT_ID,
+    timestamp: new Date().toISOString(), score: score,
+    foundCount: foundList.length, total: conics.length, found: foundList.join(', ')
+  };
+}
+function sendDogamRecord(){
+  var rec = buildDogamRecord();
+  if(SHEETS_WEBHOOK_URL){
+    // Apps Script 웹앱은 보통 CORS 응답이 없어 no-cors로 전송(응답은 못 읽지만 서버에는 정상 도착)
+    fetch(SHEETS_WEBHOOK_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(rec)
+    }).catch(function(err){ console.warn('구글시트 전송 실패:', err); });
+  } else {
+    // 웹훅이 설정되지 않았으면 이 기기에 CSV로 다운로드(선생님이 나중에 취합 가능)
+    var header = '이름,시간,점수,발견수,전체,발견목록\n';
+    var row = [rec.name, rec.timestamp, rec.score, rec.foundCount, rec.total, '"'+rec.found+'"'].join(',');
+    var blob = new Blob(['﻿'+header+row], {type:'text/csv;charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = '이차곡선도감_' + rec.name + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+}
+function leaveGame(sendRecord){
+  if(sendRecord) sendDogamRecord();
+  if(mpMyRef){ mpMyRef.remove(); }
+  started = false;
+  document.getElementById('goodbye-sub').textContent = sendRecord ? '오늘의 탐험 기록을 저장했어요.' : '안녕히 가세요!';
+  document.getElementById('goodbye-overlay').classList.add('show');
+}
+document.getElementById('leave-btn').addEventListener('click', function(){
+  if(!started) return;
+  showEntryPrompt('도감을 전송하시겠습니까?', function(){ leaveGame(true); }, function(){ leaveGame(false); });
+});
+
+/* ============================================================
+   21. 시작 화면 / 로딩 처리
+============================================================ */
+document.getElementById('loading').style.display = 'none';
+var PLAYER_NAME = '탐험가';
+document.getElementById('start-btn').addEventListener('click', function(){
+  var typed = document.getElementById('player-name-input').value.trim();
+  PLAYER_NAME = typed ? typed.slice(0,10) : '탐험가';
+  updateLabelSprite(player.userData.nameTag, PLAYER_NAME, {bg:'rgba(60,120,60,0.85)', fontSize:19});
+  document.getElementById('hud-score-title').textContent = PLAYER_NAME + '의 점수';
+  document.getElementById('complete-banner-name').textContent = '진짜 이차곡선 마스터, ' + PLAYER_NAME + '!';
+  document.getElementById('start-overlay').style.display = 'none';
+  started = true;
+  getAudioCtx();
+  initMultiplayer();
+});
+
+/* ============================================================
+   22. 메인 루프
+============================================================ */
+function animate(){
+  requestAnimationFrame(animate);
+  var dt = Math.min(clock.getDelta(), 0.05);
+  var t = clock.elapsedTime;
+
+  updateDayNight(t);
+  updateTimeBadge(t);
+  updatePlayer(dt);
+  updateCameraFollow(dt);
+  updateCamera();
+  updateCars(dt);
+  updateSchoolRunner(dt, t);
+  updateLocationLabel();
+  checkTriggers();
+  updateWhisperFocusUI();
+  drawMinimap();
+  broadcastMyPosition(t);
+  updatePeers(dt);
+
+  pulseObjs.forEach(function(o){
+    var s = 1 + Math.sin(t*2.6 + o.position.x)*0.18;
+    o.scale.set(s,s,s);
+    o.material.opacity = 0.55 + Math.sin(t*2.6+o.position.x)*0.3;
+  });
+
+  renderer.render(scene, camera);
+}
+animate();
+
+})();
+</script>
+</body>
+</html>

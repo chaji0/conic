@@ -1,0 +1,4 @@
+# Netlify 배포 설정 — 빌드 과정 없이 저장소 최상단(index.html)을 그대로 배포합니다.
+[build]
+  publish = "."
+  command = ""

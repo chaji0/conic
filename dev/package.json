@@ -1,0 +1,12 @@
+{
+  "name": "danbung-conics-arena-dev",
+  "version": "1.0.0",
+  "private": true,
+  "description": "오프라인 크래시 테스트 하네스. 게임 본체(../index.html)는 이 패키지 없이도 동작합니다.",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}
