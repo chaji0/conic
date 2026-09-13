@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>베리의 대치동마실</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #cfe6f5; color: #3b2a33;
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; border-radius: 6px; background: #fff; text-align: center;
+    border: 1px solid #e3b9c9; border-bottom-width: 3px; font: 700 12px/1.5 ui-monospace, Consolas, monospace; color: #8e0f42; }
+
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: grab; }
+  #game:active { cursor: grabbing; }
+
+  .panel { background: rgba(255, 251, 244, .93); border: 2px solid #f3c6d6; border-radius: 18px;
+    box-shadow: 0 6px 22px rgba(80, 40, 60, .16); }
+
+  /* 로딩 / 시작 화면 */
+  #loading { position: fixed; inset: 0; z-index: 30; display: grid; place-items: safe center; padding: 20px; overflow: auto;
+    background: radial-gradient(circle at 50% 38%, #fff7ee, #f7d6e2 72%); }
+  #loading .box { max-width: 560px; text-align: center; padding: 34px 40px 28px; }
+  #loading .logo { font-size: 62px; line-height: 1; animation: bob 1.3s ease-in-out infinite; }
+  #loading h1 { margin: 12px 0 8px; font-size: 34px; letter-spacing: -.03em; color: #a3134f; }
+  #loading .sub { margin: 0 0 16px; color: #6f5160; line-height: 1.7; font-size: 15px; }
+  #loading .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; text-align: left; margin: 0 auto 18px;
+    width: fit-content; font-size: 13.5px; color: #5b4350; }
+  #name-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 14px; font-size: 13.5px; color: #6f5160; }
+  #player-name { font: inherit; font-size: 15px; padding: 8px 14px; border-radius: 10px; border: 2px solid #f3c6d6; width: 180px; text-align: center; }
+  #load-msg { margin: 0 0 14px; color: #9a6c80; font-size: 13px; min-height: 1.4em; line-height: 1.5; }
+  #start { border: 0; background: #c2185b; color: #fff; font-weight: 800; font-size: 18px; padding: 13px 34px;
+    border-radius: 999px; box-shadow: 0 4px 0 #8e0f42; transition: transform .1s; }
+  #start:hover { transform: translateY(-2px); }
+  #start:active { transform: translateY(2px); box-shadow: 0 2px 0 #8e0f42; }
+  #loading .credit { margin-top: 14px; font-size: 11px; color: #a08595; }
+  @keyframes bob { 50% { transform: translateY(-9px) rotate(-6deg); } }
+
+  /* HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  #hud .panel, #hud button { pointer-events: auto; }
+  #title-card { position: absolute; left: 16px; top: 16px; padding: 12px 16px 12px; width: min(330px, calc(100vw - 32px)); }
+  #title-card .t { font-weight: 800; color: #a3134f; font-size: 17px; letter-spacing: -.02em; }
+  #where { margin-top: 6px; font-size: 14px; font-weight: 600; }
+  #nearby { margin-top: 3px; font-size: 12.5px; color: #7a5a69; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #nearby:empty { display: none; }
+  #found { margin-top: 8px; display: inline-block; font-size: 12.5px; font-weight: 700; color: #fff; background: #c2185b;
+    padding: 3px 10px; border-radius: 999px; }
+
+  #mp-status { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 7px; }
+  #mp-status .led { width: 9px; height: 9px; border-radius: 50%; background: #f2c14e; box-shadow: 0 0 8px #f2c14e; }
+  #mp-status.live .led { background: #49d67a; box-shadow: 0 0 8px #49d67a; }
+  #mp-status.off .led { background: #8a8f98; box-shadow: none; }
+
+  /* 전체 지도 — 항상 오른쪽에 크게 */
+  #bigmap { position: absolute; right: 16px; top: 16px; width: min(38vw, 520px); padding: 8px; cursor: pointer; }
+  #bigmap canvas { display: block; border-radius: 10px; }
+  #bigmap .cap { position: absolute; left: 16px; top: 14px; font-weight: 800; color: #a3134f; background: rgba(255,251,244,.92);
+    padding: 4px 10px; border-radius: 999px; font-size: 12.5px; }
+  #bigmap .n { position: absolute; right: 16px; top: 14px; background: #c2185b; color: #fff; font: 800 11px/1 system-ui; padding: 4px 6px; border-radius: 8px; }
+  #time-badge { position: absolute; right: 16px; bottom: -14px; transform: translateY(100%); padding: 6px 12px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 800; color: #fff; white-space: nowrap; transition: background .6s linear; }
+  #time-badge.day { background: rgba(64,124,196,0.9); }
+  #time-badge.dusk { background: rgba(190,96,48,0.92); }
+  #time-badge.night { background: rgba(22,26,52,0.92); }
+  #map-btn { position: absolute; right: 16px; top: 16px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #f3c6d6;
+    background: rgba(255,251,244,.93); font-size: 24px; display: grid; place-items: center; }
+  @media (max-width: 720px) { #bigmap { width: min(44vw, 260px); } #bigmap .cap { display: none; } }
+
+  #prompt { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 9px 16px; font-weight: 700;
+    font-size: 15px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  #toast { position: absolute; left: 50%; top: 60px; transform: translateX(-50%); padding: 10px 20px; font-weight: 700;
+    font-size: 15px; white-space: nowrap; animation: pop .35s ease-out; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  @keyframes pop { from { transform: translate(-50%, -12px); opacity: 0; } }
+
+  #zoom-ctrl { position: absolute; bottom: 34px; right: 16px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; }
+  #zoom-ctrl input[type=range] { width: 150px; height: 26px; accent-color: #c2185b; }
+  #zoom-ctrl .zoom-btn { width: 42px; height: 42px; border-radius: 12px; border: 2px solid #f3c6d6; background: #fff; color: #a3134f;
+    font-size: 22px; font-weight: 800; line-height: 1; user-select: none; -webkit-user-select: none; touch-action: manipulation; display: grid; place-items: center; padding: 0; }
+  #zoom-ctrl .zoom-btn:active { background: #f3c6d6; }
+
+  #help { position: absolute; left: 16px; bottom: 16px; padding: 10px 14px; font-size: 12.5px; line-height: 2; max-width: min(400px, calc(100vw - 300px)); }
+  #help b { color: #a3134f; margin-right: 4px; }
+  @media (max-width: 760px), (pointer: coarse) { #help { display: none; } }
+  #credit { position: absolute; right: 16px; bottom: 10px; font-size: 11px; color: rgba(40, 30, 35, .7); text-shadow: 0 0 3px #fff; }
+
+  /* 터치 조작: 방향 버튼 + 달리기, 가상 조이스틱 */
+  #dpad { position: absolute; left: 16px; bottom: 100px; }
+  .dpad-row { display: flex; justify-content: center; }
+  .dpad-btn { width: 52px; height: 52px; margin: 4px; border-radius: 14px; background: rgba(255,251,244,.9); border: 2px solid #f3c6d6; color: #a3134f;
+    font-size: 22px; display: grid; place-items: center; user-select: none; -webkit-user-select: none; touch-action: none; pointer-events: auto; }
+  .dpad-btn:active { background: #f3c6d6; }
+  #btn-run { width: 172px; height: 44px; font-size: 15px; font-weight: 800; }
+  #joystick { position: fixed; width: 124px; height: 124px; margin-left: -62px; margin-top: -62px; border-radius: 50%;
+    border: 2px solid rgba(194,24,91,.5); background: rgba(255,255,255,.25); z-index: 25; pointer-events: none; }
+  #joystick-knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(194,24,91,.75); border: 2px solid #fff; transform: translate(-50%,-50%); }
+
+  /* 랜드마크 카드 */
+  #card { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(60, 30, 45, .25); padding: 20px; }
+  #card .inner { width: min(440px, 100%); padding: 26px 28px 22px; animation: pop2 .25s ease-out; }
+  @keyframes pop2 { from { transform: scale(.94); opacity: 0; } }
+  #card .emoji { font-size: 44px; line-height: 1; }
+  #card .kind { margin-top: 10px; font-size: 12px; font-weight: 700; color: #c2185b; letter-spacing: .08em; }
+  #card h2 { margin: 4px 0 10px; font-size: 25px; letter-spacing: -.02em; }
+  #card .desc { margin: 0; line-height: 1.75; font-size: 15px; color: #4d3a44; }
+  #card .meta { margin-top: 14px; font-size: 12.5px; color: #8d6f7c; }
+  #card button { margin-top: 18px; border: 0; background: #c2185b; color: #fff; font-weight: 700; padding: 9px 20px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="loading">
+  <div class="box panel">
+    <div class="logo">🐈</div>
+    <h1>베리의 대치동마실</h1>
+    <p class="sub">고양이 <b>베리</b>가 되어 단대부고 앞에서 출발해<br>실제 지도 그대로 만든 대치동·도곡동을 마음껏 산책해요.<br>
+      3분마다 낮과 밤이 바뀌고, 자동차는 구글 스트릿뷰로 갈 수 있는 길로만 다녀요.</p>
+    <div class="keys">
+      <span><kbd>↑</kbd><kbd>↓</kbd> / <kbd>W</kbd><kbd>S</kbd></span><span>앞으로 · 뒤로</span>
+      <span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd></span><span>왼쪽 · 오른쪽으로 돌기</span>
+      <span><kbd>Shift</kbd> / 🏃 버튼</span><span>달리기</span>
+      <span>톡 누르기</span><span>가까운 장소 둘러보기</span>
+      <span>짧게 끌기 · 휠</span><span>시점 돌리기 · 확대·축소</span>
+      <span>꾹 누른 채 끌기</span><span>그 방향으로 이동 (가상 조이스틱)</span>
+      <span>두 손가락</span><span>확대·축소</span>
+      <span><kbd>E</kbd> <kbd>M</kbd> <kbd>R</kbd></span><span>둘러보기 · 지도 접기/펴기 · 단대부고로 돌아가기</span>
+    </div>
+    <div id="name-row"><label for="player-name">내 이름</label><input type="text" id="player-name" maxlength="10" placeholder="베리"></div>
+    <p id="load-msg">준비 중…</p>
+    <button id="start" hidden>산책 시작 🐾</button>
+    <div class="credit">지도 데이터 © OpenStreetMap 기여자 (ODbL) · 같은 방(<code>?room=반이름</code>)에 들어온 친구들이 지도에 함께 보여요</div>
+  </div>
+</div>
+
+<div id="hud" hidden>
+  <div id="title-card" class="panel">
+    <div class="t">🐈 베리의 대치동마실</div>
+    <div id="where">📍 단대부고 근처</div>
+    <div id="nearby"></div>
+    <div id="found">발견한 장소 0 / 0</div>
+  </div>
+  <div id="mp-status" class="panel" hidden><span class="led"></span><span id="mp-status-text">접속하는 중...</span></div>
+  <div id="bigmap" class="panel">
+    <canvas id="bigmap-canvas"></canvas>
+    <div class="cap">🗺️ 대치동·도곡동 전체 지도 (누르면 접힘 · M)</div>
+    <div class="n">N</div>
+    <div id="time-badge" class="day">☀️ 낮</div>
+  </div>
+  <button id="map-btn" title="지도 펴기">🗺️</button>
+  <div id="prompt" class="panel" hidden></div>
+  <div id="toast" class="panel" hidden></div>
+  <div id="dpad" hidden>
+    <div class="dpad-row"><div class="dpad-btn" id="btn-up">▲</div></div>
+    <div class="dpad-row"><div class="dpad-btn" id="btn-left">◀</div><div class="dpad-btn" id="btn-down">▼</div><div class="dpad-btn" id="btn-right">▶</div></div>
+    <div class="dpad-row"><div class="dpad-btn" id="btn-run">🏃 달리기 (꾹)</div></div>
+  </div>
+  <div id="zoom-ctrl" class="panel">
+    <button class="zoom-btn" id="zoom-out" title="축소">−</button>
+    <input type="range" id="zoom-slider" min="5" max="46" step="0.5" value="12">
+    <button class="zoom-btn" id="zoom-in" title="확대">＋</button>
+  </div>
+  <div id="help" class="panel">
+    <b>조작</b><kbd>↑↓</kbd> 걷기 · <kbd>←→</kbd> 돌기 · <kbd>Shift</kbd> 달리기 · 톡 = 둘러보기 · 끌기 = 시점 · 꾹 누르기 = 이동 ·
+    <kbd>M</kbd> 지도 · <kbd>R</kbd> 처음 위치 · <kbd>H</kbd> 도움말 숨기기
+  </div>
+  <div id="credit">지도 데이터 © OpenStreetMap 기여자 (ODbL)</div>
+</div>
+
+<div id="joystick" hidden><div id="joystick-knob"></div></div>
+
+<div id="card" hidden>
+  <div class="inner panel">
+    <div class="emoji"></div>
+    <div class="kind"></div>
+    <h2></h2>
+    <p class="desc"></p>
+    <div class="meta"></div>
+    <button id="card-close">닫기 <kbd>E</kbd></button>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# 구글맵 API 키 (제작 단계 스크립트만 사용)
+.env
+# 의존성·산출물
+node_modules/
+dev/node_modules/
+dev/package-lock.json
+dev/screenshot_walk.png
+# 제작 단계 원본·중간 데이터 (다시 만들 수 있음)
+data/osm-raw.json
+streetview/
+dist/

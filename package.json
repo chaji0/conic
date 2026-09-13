@@ -1,0 +1,20 @@
+{
+  "name": "berry-daechi",
+  "version": "2.0.0",
+  "description": "베리의 대치동마실 — 실제 대치동·도곡동 지도 위를 고양이 베리가 산책하는 웹 3D 게임",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node serve.js",
+    "build": "node tools/build-dist.mjs",
+    "test": "cd dev && node test.js",
+    "map": "node tools/fetch-osm.mjs && node tools/build-map.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "playwright": "^1.50.0"
+  }
+}

@@ -1,121 +1,75 @@
-# 단붕이의 대치동 이차곡선 탐험
+# 베리의 대치동마실
 
-2022 개정교육과정 **기하 - 이차곡선** 단원 수업용 3D 웹 게임.
-학생이 대치동·도곡동 거리를 걸어다니며 일상 속에 숨은 포물선·타원·쌍곡선·원을 찾는 탐험형 활동입니다.
+고양이 **베리**가 되어 단대부고 앞에서 출발해, **실제 지도 그대로 만든** 대치동·도곡동(약 2km × 2km)을 산책하는
+웹 3D 게임입니다. 3분마다 낮과 밤이 바뀌고, 자동차는 구글 스트릿뷰로 갈 수 있는 길로만 다닙니다.
+같은 방에 들어온 친구들은 지도 위에 고양이로 함께 보입니다.
 
-빌드 과정이 없는 **단일 HTML 파일**(`index.html`)입니다. Three.js r128만 CDN에서 불러옵니다.
+배포 주소: <https://chaji0.github.io/conic/> (`main` 에 푸시하면 1~2분 뒤 반영)
 
----
-
-## GitHub Pages로 배포하기
-
-1. 이 폴더의 내용을 **공개(public)** GitHub 저장소에 올립니다 (`index.html`이 저장소 최상단에 있어야 합니다).
-   → 무료 계정에서 GitHub Pages는 공개 저장소에서만 동작합니다. 아래 "저장소 공개와 Firebase 보안" 항목을 꼭 읽어주세요.
-2. 저장소 → **Settings** → **Pages**
-3. **Source** 를 `Deploy from a branch`, 브랜치는 `main`, 폴더는 `/ (root)` 로 지정하고 Save
-4. 1~2분 뒤 `https://<계정명>.github.io/<저장소명>/` 에서 바로 실행됩니다.
-
-`.nojekyll` 파일이 포함되어 있어 GitHub의 Jekyll 처리를 건너뜁니다(한글 파일명·언더바 폴더 문제 예방).
-
-> 별도의 빌드·설치·서버가 필요 없습니다. `index.html`을 브라우저로 직접 열어도 동작하지만,
-> 실시간 동시접속 기능을 쓰려면 `https://` 주소로 접속하는 편이 안정적입니다.
+> 이전에 이 저장소에 있던 「단붕이의 대치동 이차곡선 탐험」은 git 기록(`9d46f90` 이전)에 남아 있습니다.
+> 이차곡선 도감은 이 지도 위에 새로 만들 예정입니다 (`docs/PRD.md` 참고).
 
 ---
 
-## 저장소 공개와 Firebase 보안에 대해
+## 실행 / 개발
 
-**이 저장소는 공개(public)를 전제로 합니다.** GitHub Pages를 무료로 쓰려면 저장소가 공개여야 하기 때문입니다.
-
-`index.html` 안에는 Firebase 프로젝트 설정값(`FIREBASE_CONFIG`)이 들어 있습니다. 하지만 이건
-**저장소를 비공개로 해도 숨길 수 없는 값**입니다 — 게임에 접속한 사람이면 누구나 브라우저
-소스보기로 볼 수 있으니까요. Firebase 웹 API 키는 원래 그렇게 쓰라고 만든 공개 값입니다.
-
-따라서 진짜 방어선은 저장소 공개 여부가 아니라 **Realtime Database 보안 규칙**입니다.
-아래 규칙을 Firebase 콘솔 → Realtime Database → 규칙 에 붙여넣어 주세요.
-로그인 없이도 수업은 그대로 돌아가면서, 낯선 사람이 데이터베이스 전체를 읽거나 지우는 건 막아줍니다.
-
-```json
-{
-  "rules": {
-    "rooms": {
-      "$room": {
-        "players": {
-          ".read": true,
-          "$player": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['name','x','z'])"
-          }
-        }
-      }
-    }
-  }
-}
+```bash
+npm install          # three, esbuild, playwright
+npm start            # http://localhost:8130 → dev.html (src/ 를 직접 실행, 수정 즉시 반영)
+npm run build        # dev.html + src/ + data/ → index.html (배포용 단일 파일, 약 1MB)
+npm test             # dev/test.js — 빌드된 index.html 을 헤드리스로 띄워 시작·이동까지 확인 (ERRORS: [] 이어야 함)
 ```
 
-전체 개방(`.read/.write: true`)보다 나은 점:
-- `rooms/<방>/players/` 밑에만 쓸 수 있어, 다른 경로를 만들거나 DB를 통째로 지울 수 없습니다
-- 위치 데이터 형식(`name`, `x`, `z`)이 맞아야만 기록됩니다
-- 루트에서 전체 데이터를 한 번에 읽어갈 수 없습니다
+**`index.html` 은 빌드 결과물입니다. 직접 편집하지 말고 `src/` 와 `dev.html` 을 고친 뒤 `npm run build` 로 다시 만드세요.**
+GitHub Pages 는 이 `index.html` 하나를 그대로 서비스하며, 파일을 더블클릭해도(인터넷·서버 없이) 실행됩니다.
 
-**수업이 끝나면** 콘솔에서 `.read`/`.write` 를 `false` 로 바꿔 잠가두시는 걸 권장합니다.
-다음 수업 때 다시 위 규칙으로 되돌리면 됩니다.
+## 조작
 
-> `FIREBASE_CONFIG` 를 `null` 로 두면 외부 네트워크 요청이 한 건도 발생하지 않고
-> 혼자 플레이하는 모드로 동작합니다. 동시접속이 필요 없는 기간에는 이렇게 두어도 됩니다.
-
----
+| 입력 | 동작 |
+|---|---|
+| `↑` `↓` / `W` `S` | 앞으로 · 뒤로 |
+| `←` `→` / `A` `D` | 왼쪽 · 오른쪽으로 돌기 |
+| `Shift` / 🏃 버튼 | 달리기 (1.9배) |
+| 톡 누르기 | 가까운 장소 둘러보기 |
+| 짧게 끌기 · 휠 · 슬라이더 | 시점 돌리기 · 확대·축소 |
+| 꾹 누른 채 끌기 (터치) | 가상 조이스틱으로 이동 |
+| 두 손가락 | 확대·축소 |
+| `E` `M` `R` `H` | 둘러보기 · 지도 접기/펴기 · 처음 위치 · 도움말 |
 
 ## 폴더 구조
 
 ```
-.
-├── index.html                        게임 본체 (이 파일 하나가 전부)
-├── .nojekyll                         GitHub Pages Jekyll 비활성화
-├── docs/
-│   ├── 개발노트.md                    구조·좌표계·시스템 설명 (코드 수정 전 읽기)
-│   ├── 멀티플레이어_설정방법.md         Firebase / Apps Script 설정 안내
-│   └── apps-script-template.gs        도감 기록을 구글시트에 쌓는 Apps Script
-└── dev/
-    ├── test.js                       헤드리스 크래시 테스트 (Playwright)
-    ├── mock-three.js                 three.js 모의 스텁 (오프라인 검증용)
-    └── package.json
+index.html          빌드 결과 (배포용, 직접 편집 금지)
+dev.html            개발용 화면 (importmap 으로 src/ 를 바로 실행)
+src/
+  main.js           조작·카메라·HUD·전체 지도·랜드마크·동시접속·메인 루프
+  world.js          지도 데이터 → 땅·도로·건물·담벼락·가로등·나무·충돌·미니맵 이미지
+  vehicles.js       자동차(스트릿뷰 도로망 주행) · 세워 둔 자전거
+  sky.js            하늘 돔·별·해·달 · 밤낮 주기
+  cat.js            베리 모델과 걷기 애니메이션
+  multiplayer.js    Firebase 동시접속 (FIREBASE_CONFIG)
+data/
+  map.json          게임용 지도 (원점 = 단대부고, +x 동, +z 남, 단위 m) — tools/ 로 생성
+  landmarks.json    랜드마크 20곳 (이름·좌표·설명·Meshy 모델 경로)
+assets/models/      Meshy 등에서 받은 GLB 모델 (있으면 자동으로 교체 배치)
+tools/              제작 단계 스크립트 (아래 참고)
+dev/test.js         헤드리스 테스트 (Playwright)
+docs/               개발노트 · 동시접속 설정 · PRD
 ```
 
----
-
-## 게임 내용 요약
-
-- **도감 10종**: 파라볼라 마이크, 자동차 전조등 반사경, 위성 안테나, 분수대 물줄기, 태양열 집광장치(포물선) / 유리돔, 정원 연못, 속삭이는 회랑(타원) / 가로등 갓, 반사망원경(쌍곡선) / 정문 아치(원)
-- **조작**: 방향키·WASD로 걷기, 톡 누르면 선택, 짧게 끌면 시점 회전, 꾹 누른 채 끌면 이동(가상 조이스틱), 두 손가락 핀치로 확대·축소
-- **밤낮 주기 3분**: 낮 60초 → 해질녘 30초 → 밤 60초 → 새벽 30초
-- **태양열 집광장치**: 반사판 초점거리를 흡수기 높이에 맞출수록 집광 효율이 오르고, 그만큼 밤에 도시 조명이 밝아짐
-- **카세그레인식 반사망원경**: 포물면 주경의 초점과 쌍곡면 부경의 초점을 겹치면 은하수가 선명해짐
-- **자전거**: 낮에는 걷기의 1.5배, 밤에는 전조등 밝기에 비례해 1.0~1.5배
-- **실시간 동시접속**: 같은 방(`?room=반이름`)에 접속한 학생들이 서로 지도 위에 보임
-- **도감 전송**: 나가기 → 확인 시 구글시트로 전송(미설정 시 CSV 다운로드)
-
----
-
-## 개발 / 검증
-
-이 프로젝트는 번들러나 패키지 의존성이 없습니다. `index.html`만 편집하면 됩니다.
-
-오프라인 환경에서 전체 스크립트가 예외 없이 실행되는지 확인하려면:
+## 지도 데이터 만들기 (제작 단계)
 
 ```bash
-cd dev
-npm i -D playwright        # 최초 1회
-node test.js
+node tools/fetch-osm.mjs          # OpenStreetMap(Overpass) → data/osm-raw.json
+node tools/build-map.mjs          # → data/map.json (건물 높이 추정, 도로 폭, 구역, 이전 스트릿뷰 확인값 보존)
+node tools/streetview-roads.mjs   # 도로마다 구글 스트릿뷰 유무 확인 → map.json 의 sv (.env 의 GOOGLE_MAPS_API_KEY 필요, 무료 메타데이터 호출)
+node tools/streetview.mjs --dry   # 랜드마크마다 스트릿뷰 파노라마가 있는지 확인 (무료)
+node tools/streetview.mjs dandae  # 랜드마크 사진 4방향 다운로드 → streetview/<id>/ (유료 API, Meshy 변환용)
 ```
 
-`test.js`는 three.js CDN 요청을 `mock-three.js`(Proxy 기반 스텁)로 가로채 실제 WebGL 없이
-스크립트 전체를 끝까지 실행시킵니다. 정상이면 다음이 출력됩니다.
+랜드마크 건물을 Meshy 로 만든 GLB 로 바꾸려면 `assets/models/<이름>.glb` 에 두고 `data/landmarks.json`
+해당 항목의 `model` 에 경로를 적습니다 (`modelHeight`·`modelYaw`·`replaceRadius` 로 조정). 베리 자신은
+`assets/models/berry.glb` 가 있으면 그것을 씁니다.
 
-```
-EARLY_ERRORS: []
-CONIC_COUNT: 10
-START_OVERLAY_HIDDEN: true
-ERRORS: []
-```
-
-자세한 내부 구조와 주의사항은 **`docs/개발노트.md`** 를 먼저 읽어주세요.
+게임 실행 중에는 지도 API 를 전혀 호출하지 않습니다. `.env` 는 git 에 올라가지 않습니다.
+지도 데이터 © OpenStreetMap 기여자 (ODbL).
