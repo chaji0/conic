@@ -7,6 +7,8 @@ import { buildWorld, project, pointInPoly } from './world.js';
 import { createTerrain } from './terrain.js';
 import { buildCampus } from './campus.js';
 import { createTelescope } from './telescope.js';
+import { createLithotripter } from './lithotripter.js';
+import { createCollection } from './collection.js';
 import { createCars, createBikes, createRideBike } from './vehicles.js';
 import { createSky, phaseOf } from './sky.js';
 import { createMultiplayer, ROOM } from './multiplayer.js';
@@ -255,9 +257,12 @@ async function main() {
   const keyHeld = { fwd: false, back: false, left: false, right: false, run: false };
   const keyMap = { ArrowUp: 'fwd', KeyW: 'fwd', ArrowDown: 'back', KeyS: 'back', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ShiftLeft: 'run', ShiftRight: 'run' };
   const clock = new THREE.Clock();
-  let started = false, cardOpen = false, nearest = null, mapShown = true, nearTelescope = false;
-  const telescope = createTelescope({ isNight: () => sky.isNight });
-  const uiBlocking = () => cardOpen || !started || telescope.isOpen;
+  let started = false, cardOpen = false, nearest = null, mapShown = true, nearTelescope = false, nearClinic = false;
+  const dogam = createCollection({ toast: (t, ms) => toast(t, ms) });
+  const telescope = createTelescope({ isNight: () => sky.isNight, onComplete: () => dogam.collect('telescope') });
+  const litho = createLithotripter({ onCollected: () => dogam.collect('lithotripter') });
+  const overlayOpen = () => telescope.isOpen || litho.isOpen || dogam.isOpen;
+  const uiBlocking = () => cardOpen || !started || overlayOpen();
 
   // e.code 가 비어 오는 환경(일부 가상 키보드·자동화)을 위해 e.key 로 보충
   const codeOf = e => {
@@ -274,7 +279,7 @@ async function main() {
     if (k) { input[k] = keyHeld[k] = true; e.preventDefault(); }
     if (!started) { if ((code === 'Enter' || code === 'NumpadEnter') && !$('#start').hidden) start(); return; }
     if (e.repeat) return;
-    if (telescope.isOpen) { if (code === 'Escape') telescope.close(); return; }
+    if (overlayOpen()) { if (code === 'Escape') { telescope.close(); litho.close(); dogam.hide(); } return; }
     switch (code) {
       case 'KeyE': interact(); break;
       case 'Escape': closeCard(); break;
@@ -409,10 +414,11 @@ async function main() {
   }
   // E / 톡: 카드 닫기 > 자전거 내리기 > 천문대 > 자전거 타기 > 랜드마크 카드
   function interact() {
-    if (!started || telescope.isOpen) return;
+    if (!started || overlayOpen()) return;
     if (cardOpen) { closeCard(); return; }
     if (riding) { dismount(); toast('🚶 자전거에서 내렸어요'); return; }
-    if (nearTelescope) { telescope.open(); return; }
+    if (nearTelescope) { telescope.open(charKey); return; }
+    if (nearClinic) { litho.open(charKey); return; }
     if (nearBike) { mount(nearBike); return; }
     if (nearest) openCard(nearest);
   }
@@ -484,6 +490,9 @@ async function main() {
     const glow = dTel < 30 ? (0.35 + 0.35 * Math.sin(t * (dTel < 7 ? 8 : 3))) * (1 - Math.max(0, dTel - 7) / 23) : 0;
     if (ts.signMat) ts.signMat.emissiveIntensity = glow;
     if (ts.roofMat) ts.roofMat.emissiveIntensity = glow * 0.8;
+    const cs = campus.clinicSpot, dCl = Math.hypot(player.pos.x - cs.x, player.pos.z - cs.z);
+    nearClinic = dCl < 7 && !riding;
+    if (cs.signMat) cs.signMat.emissiveIntensity = dCl < 30 ? (0.35 + 0.35 * Math.sin(t * (dCl < 7 ? 8 : 3))) * (1 - Math.max(0, dCl - 7) / 23) : 0;
     // 단붕이는 거치대 자전거 옆에서 탈 수 있다
     nearBike = null;
     if (charKey === 'bear' && !riding && bikes.list) {
@@ -491,9 +500,10 @@ async function main() {
       for (const b of bikes.list) { const d = Math.hypot(player.pos.x - b.x, player.pos.z - b.z); if (d < bd) { bd = d; nearBike = b; } }
     }
     const prompt = $('#prompt');
-    prompt.hidden = !started || cardOpen || telescope.isOpen || !(nearest || nearTelescope || nearBike || riding);
+    prompt.hidden = !started || cardOpen || overlayOpen() || !(nearest || nearTelescope || nearClinic || nearBike || riding);
     if (riding) prompt.innerHTML = `<kbd>E</kbd> 🚲 자전거에서 내리기`;
     else if (nearTelescope) prompt.innerHTML = `<kbd>E</kbd> 🔭 옥상 천문대에 올라가기 (화면을 톡 눌러도 돼요)`;
+    else if (nearClinic) prompt.innerHTML = `<kbd>E</kbd> 🏥 내과 들어가기 — 쇄석기 시술 체험`;
     else if (nearBike) prompt.innerHTML = `<kbd>E</kbd> 🚲 자전거 타기 (2배 빨라요)`;
     else if (nearest) prompt.innerHTML = `<kbd>E</kbd> ${KIND[nearest.kind]?.[0] ?? '📍'} ${nearest.name} 둘러보기 (화면을 톡 눌러도 돼요)`;
   }
@@ -697,7 +707,7 @@ async function main() {
     renderer.render(scene, camera);
   });
 
-  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope, setCharacter, get charKey() { return charKey; }, get riding() { return riding; }, get avatar() { return avatar; }, bikes, mount, interact };   // 디버그·테스트용
+  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope, setCharacter, get charKey() { return charKey; }, get riding() { return riding; }, get avatar() { return avatar; }, bikes, mount, interact, litho, dogam };   // 디버그·테스트용
   setLoad(`건물 ${world.buildingCount.toLocaleString()}채 · 나무 ${world.treeCount.toLocaleString()}그루 · 가로등 ${world.lampCount.toLocaleString()}개 · 담장 ${(world.wallLen / 1000).toFixed(1)}km · 자동차 ${cars.count}대 · 자전거 ${bikes.count}대 · 방 "${ROOM}"`);
   $('#start').hidden = false;
 }

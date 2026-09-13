@@ -56,6 +56,7 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
   const glassMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xffd27a, emissiveIntensity: 0 });
   const nightMats = [glassMat];
   const TEL = { x: gate.x + dirIn.x * 40, z: gate.z + dirIn.z * 40 };   // 옥상 천문대로 올라가는 자리 (본관 현관 앞에서 갱신)
+  const CLINIC = { x: gate.x - 40, z: gate.z - 110 };                      // 내과 (KB국민은행 건물) — 간판 자리에서 갱신
 
   // ---------- 건물 (벽돌 + 층마다 흰 띠 + 창문 + 옥상 계단탑) ----------
   for (const b of buildings) {
@@ -400,6 +401,13 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
     sign.position.set(s.x, y + 3.2, s.z); sign.rotation.y = Math.atan2(gate.x - s.x, gate.z - s.z) + Math.PI / 2; group.add(sign);
     for (const d of [-2.6, 2.6]) { const post = box(0.12, 3.9, 0.12, 0x3a3f48); post.position.set(s.x + Math.cos(sign.rotation.y) * d, y + 1.95, s.z - Math.sin(sign.rotation.y) * d); group.add(post); }
     nightMats.push(sign.material); sign.material.emissive = new THREE.Color(0xffbc00); sign.material.emissiveMap = sign.material.map; sign.material.emissiveIntensity = 0;
+    // 같은 건물 2층의 '내과' 간판 — 가까이 가면 빛나고, E 로 쇄석기 시술 체험
+    const cs = world.findOpenSpot(s.x + Math.cos(sign.rotation.y) * 9, s.z - Math.sin(sign.rotation.y) * 9, 1.5, 24);
+    const clinic = board(4.6, 1.3, textTexture('🏥 내과 · 신장결석 클리닉', { bg: '#ffffff', fg: '#1e5aa8', font: 'bold 44px "Malgun Gothic",sans-serif', w: 640, h: 180 }), { double: true });
+    clinic.position.set(cs.x, T(cs.x, cs.z) + 5.4, cs.z); clinic.rotation.y = sign.rotation.y; group.add(clinic);
+    for (const d of [-2.0, 2.0]) { const post = box(0.12, 6.1, 0.12, 0x3a3f48); post.position.set(cs.x + Math.cos(clinic.rotation.y) * d, T(cs.x, cs.z) + 3.05, cs.z - Math.sin(clinic.rotation.y) * d); group.add(post); }
+    clinic.material.emissive = new THREE.Color(0x4aa3ff); clinic.material.emissiveMap = clinic.material.map;
+    CLINIC.x = cs.x; CLINIC.z = cs.z; CLINIC.signMat = clinic.material;
   }
 
   // 캠퍼스 안 가로수 (길과 건물 피해서)
@@ -436,6 +444,7 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
   return {
     group,
     telescopeSpot: TEL,        // 이 근처(현관 앞)에서 E → 옥상 천문대
+    clinicSpot: CLINIC,        // 이 근처에서 E → 내과 쇄석기 시술 체험
     setNight(night) { for (const m of nightMats) m.emissiveIntensity = night * (m === glassMat ? 0.9 : 1.2); },
   };
 }

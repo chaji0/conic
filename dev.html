@@ -166,6 +166,70 @@
   #helpBub.show { opacity: 1; transform: translateY(0); }
   #telMoonNote { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); font-size: 12.5px; z-index: 5; }
 
+  /* 도감 카드 */
+  #dogam-btn { pointer-events: auto; margin-left: 6px; border: 1px solid #f3c6d6; background: #fff; color: #a3134f; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  #dogam { position: fixed; inset: 0; z-index: 22; display: grid; place-items: center; background: rgba(60, 30, 45, .35); padding: 20px; overflow: auto; }
+  #dogam .box { padding: 22px 26px 18px; width: min(760px, 100%); }
+  #dogam h2 { margin: 0 0 4px; color: #a3134f; font-size: 22px; }
+  #dogam .sub { margin: 0 0 16px; color: #7a5a69; font-size: 13px; }
+  #dogam-grid { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+  .dcard { width: 200px; perspective: 900px; }
+  .dcard .inner { position: relative; width: 200px; height: 200px; transform-style: preserve-3d; transition: transform 1.1s cubic-bezier(.2,.8,.2,1); }
+  .dcard.got .inner { transform: rotateY(180deg); }
+  .dcard.flip-new .inner { transition-duration: 1.6s; }
+  .dcard .face { position: absolute; inset: 0; border-radius: 16px; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; box-shadow: 0 6px 18px rgba(80,40,60,.18); border: 2px solid #f3c6d6; background: #fff; }
+  .dcard .back { background: #f2f2f2; display: grid; place-items: center; padding: 22px; }
+  .dcard .back svg { width: 130px; height: 130px; filter: grayscale(1); }
+  .dcard .back .lbl { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 12px; color: #777; font-weight: 700; letter-spacing: .1em; }
+  .dcard .front { transform: rotateY(180deg); }
+  .dcard .front svg { width: 100%; height: 100%; display: block; }
+  .dcard .meta { margin-top: 8px; text-align: center; }
+  .dcard .meta b { display: block; font-size: 14px; color: #3b2a33; }
+  .dcard .meta span { display: block; font-size: 12px; color: #8d6f7c; margin-top: 2px; }
+  #dogam-close { margin-top: 18px; border: 0; background: #c2185b; color: #fff; font-weight: 700; padding: 9px 20px; border-radius: 999px; }
+
+  /* 내과 — 쇄석기 시술 체험 */
+  #litho { position: fixed; inset: 0; z-index: 40; display: flex; background: #EFEFE3; color: #23241D; font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; font-size: 13.5px; }
+  #lithoStage { flex: 1; position: relative; min-width: 0; }
+  #lithoCv { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #lithoPanel { width: 340px; flex: none; border-left: 1px solid #DCDACD; overflow-y: auto; padding: 14px 16px 30px; }
+  @media (max-width: 860px) { #litho { flex-direction: column; } #lithoStage { height: 46dvh; flex: none; } #lithoPanel { width: auto; flex: 1; border-left: 0; border-top: 1px solid #DCDACD; } }
+  #litho .ttl { font-weight: 800; font-size: 16px; margin: 0 0 2px; }
+  #litho .sub { font-size: 12px; color: #A8A79A; margin: 0 0 10px; }
+  #litho .card { border: 1px solid #DCDACD; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: #F5F5EC; }
+  #litho .card h2 { font-size: 11.5px; margin: 0 0 8px; letter-spacing: .06em; color: #A8A79A; text-transform: uppercase; }
+  #litho .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  #litho .row label { width: 80px; flex: none; font-size: 12px; color: #A8A79A; }
+  #litho .row input[type=range] { flex: 1; accent-color: #2F45EC; }
+  #litho .row .num { width: 60px; text-align: right; font-family: ui-monospace, monospace; font-size: 12px; }
+  #litho .btn { border: 1.5px solid #C7C5B6; background: transparent; color: #6f6e63; font: inherit; font-size: 11.5px; font-weight: 700; padding: 0 12px; height: 30px; border-radius: 999px; }
+  #litho .btn.pri { background: #2F45EC; border-color: #2F45EC; color: #fff; }
+  #litho .btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  #litho .pad { display: grid; grid-template-columns: 80px 80px 80px; gap: 5px; justify-content: center; }
+  #litho .pad button { height: 32px; border-radius: 9px; border: 1.5px solid #C7C5B6; background: transparent; font: inherit; font-size: 12px; font-weight: 700; }
+  #litho .pad button.ctr { background: #E9E9DC; border-color: transparent; color: #A8A79A; font-family: ui-monospace, monospace; }
+  #litho .bar { height: 9px; border-radius: 999px; background: #E1E0D2; overflow: hidden; margin: 6px 0 3px; }
+  #litho .bar > i { display: block; height: 100%; background: #2F45EC; width: 0; }
+  #litho .kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #DCDACD; }
+  #litho .kv b { font-family: ui-monospace, monospace; font-weight: 600; }
+  #litho .note { font-size: 11.5px; color: #A8A79A; line-height: 1.55; margin-top: 6px; }
+  #litho .log { margin-top: 8px; max-height: 130px; overflow-y: auto; font-size: 12px; line-height: 1.5; }
+  #litho .log div { padding: 3px 8px; border-left: 3px solid #C7C5B6; margin-bottom: 4px; background: #EDEDE0; border-radius: 0 7px 7px 0; }
+  #litho .log div.warn { border-color: #C98A00; } #litho .log div.bad { border-color: #C0392B; background: #F2E3DE; } #litho .log div.good { border-color: #12876A; }
+  #lithoAlert { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: 76%; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #fff; background: rgba(192,57,43,.94); opacity: 0; pointer-events: none; transition: opacity .25s; text-align: center; z-index: 5; }
+  #lithoAlert.good { background: rgba(18,135,106,.94); } #lithoAlert.warn { background: rgba(201,138,0,.95); } #lithoAlert.show { opacity: 1; }
+  #aimBox { position: absolute; right: 12px; bottom: 12px; width: 200px; border-radius: 14px; overflow: hidden; background: rgba(16,18,24,.88); border: 1px solid rgba(255,255,255,.2); }
+  #aimBox .attl { display: flex; justify-content: space-between; padding: 6px 11px 3px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.75); }
+  #aimBox .attl b { color: #7FD8FF; font-family: ui-monospace, monospace; }
+  #aimCv { display: block; width: 200px; height: 200px; }
+  #lithoTools { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+  #lithoTools .btn { background: #EFEFE3; }
+  #lithoHud { position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: rgba(239,239,227,.9); border: 1px solid #DCDACD; border-radius: 999px; padding: 4px 11px; font-size: 11.5px; font-family: ui-monospace, monospace; }
+  .chip i { font-style: normal; color: #A8A79A; margin-right: 4px; }
+  .chip.acc { border-color: #2F45EC; color: #2F45EC; }
+  #lithoPatient { position: absolute; left: 12px; top: 12px; font-size: 12px; background: rgba(239,239,227,.9); border: 1px solid #DCDACD; border-radius: 999px; padding: 5px 12px; }
+
   /* 랜드마크 카드 */
   #card { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(60, 30, 45, .25); padding: 20px; }
   #card .inner { width: min(440px, 100%); padding: 26px 28px 22px; animation: pop2 .25s ease-out; }
@@ -213,7 +277,7 @@
     <div class="t">🐈 베리의 대치동마실</div>
     <div id="where">📍 단대부고 근처</div>
     <div id="nearby"></div>
-    <div id="found">발견한 장소 0 / 0</div><button id="leave-btn">🚪 나가기</button>
+    <div id="found">발견한 장소 0 / 0</div><button id="dogam-btn">📖 도감 0/2</button><button id="leave-btn">🚪 나가기</button>
   </div>
   <div id="mp-status" class="panel" hidden><span class="led"></span><span id="mp-status-text">접속하는 중...</span></div>
   <div id="bigmap" class="panel">
@@ -243,6 +307,57 @@
 </div>
 
 <div id="joystick" hidden><div id="joystick-knob"></div></div>
+
+<div id="dogam" hidden>
+  <div class="box panel">
+    <h2>📖 이차곡선 도감</h2>
+    <p class="sub">동네에 숨은 이차곡선을 찾아 미션을 완료하면 카드가 뒤집혀요.</p>
+    <div id="dogam-grid"></div>
+    <div style="text-align:center"><button id="dogam-close">닫기</button></div>
+  </div>
+</div>
+
+<div id="litho" hidden>
+  <div id="lithoStage">
+    <canvas id="lithoCv"></canvas>
+    <div id="lithoPatient">🐈 베리가 테이블에 누웠어요</div>
+    <div id="lithoTools"><button class="btn" id="btnReset">시점 초기화</button><button class="btn pri" id="btnCut">단면 끄기</button><button class="btn" id="lithoClose">나가기 Esc</button></div>
+    <div id="lithoHud"></div>
+    <div id="lithoAlert"></div>
+    <div id="aimBox"><div class="attl"><span>X선 조준</span><b id="aimD"></b></div><canvas id="aimCv"></canvas></div>
+  </div>
+  <aside id="lithoPanel">
+    <div class="ttl">🏥 내과 · 체외 충격파 쇄석기 시술 체험</div>
+    <div class="sub">F₁ 전극의 충격파가 반타원체 반사경에 반사되어 F₂ 결석에 모여요 (r₁ + r₂ = 2a = 276 mm)</div>
+    <div class="card">
+      <h2>환자 테이블 조준</h2>
+      <div class="pad">
+        <span></span><button data-d="0,1">머리쪽</button><span></span>
+        <button data-d="-1,0">◀ 왼쪽</button><button class="ctr" id="padStep">10 mm</button><button data-d="1,0">오른쪽 ▶</button>
+        <span></span><button data-d="0,-1">다리쪽</button><span></span>
+      </div>
+      <div class="row" style="margin-top:10px"><label>호흡 크기</label><input type="range" id="sBr" min="0" max="25" step="1" value="12"><span class="num" id="nBr">±12 mm</span></div>
+      <div class="btnrow"><button class="btn" id="btnHold">숨 참기 (5초)</button><button class="btn" id="btnNew">새 환자</button><label class="btn" style="display:inline-flex;align-items:center;gap:5px"><input type="checkbox" id="tShield">폐 차폐판</label></div>
+    </div>
+    <div class="card">
+      <h2>발사</h2>
+      <div class="btnrow"><button class="btn pri" id="btnShot2">한 발</button><button class="btn" id="btnAuto2">연속 발사</button><button class="btn" id="btnEnd">시술 종료 · 리포트</button></div>
+      <div class="row"><label>방전 전압</label><input type="range" id="sKv2" min="16" max="24" step="0.5" value="18"><span class="num" id="nKv2">18.0 kV</span></div>
+      <div class="note">낮은 전압으로 시작해 서서히 올리세요(램핑).</div>
+    </div>
+    <div class="card">
+      <h2>환자 상태</h2>
+      <div class="kv"><span>누적 발수</span><b><span id="c_shots">0</span> 발</b></div>
+      <div class="kv"><span>결석 명중률</span><b id="c_acc">—</b></div>
+      <div class="kv"><span>파쇄 진행</span><b id="c_stone">0 %</b></div>
+      <div class="bar"><i id="barStone"></i></div>
+      <div class="kv" style="margin-top:6px"><span>콩팥 조직 부담</span><b id="c_kid">0</b></div>
+      <div class="bar"><i id="barKid" style="background:#C25B4A"></i></div>
+      <div id="simLog" class="log"></div>
+    </div>
+    <div class="card" id="repCard" style="display:none"><h2>시술 리포트</h2><div id="repBox"></div></div>
+  </aside>
+</div>
 
 <div id="goodbye" hidden>
   <div class="box panel">

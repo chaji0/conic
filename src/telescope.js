@@ -2,6 +2,8 @@
 // 「이차곡선과 빛」의 반사 망원경 탭을 옮겨 왔다: 빛 반사 원리(4단계 + 곡선 단면) · 조작 모드(조준·부경 레버·초점 노브).
 // 광학 상수(로컬 좌표: 광축 = z, 빛은 +z 로 진행). 1 유닛 = 50 mm.
 import * as THREE from 'three';
+import { createBerry } from './cat.js';
+import { createDanbung } from './bear.js';
 
 const MM3 = 50, KX = 4;
 const F = 24, RM = 4.0, RH = 0.5, F1 = -24, F2 = 2.0;
@@ -12,10 +14,11 @@ const SHIFT = 9.8, TILT = Math.PI * 35 / 180, MOUNT_Y = 6.2, GROUND = -6.6;
 const zp = r => -r * r / (4 * F);
 const zh = r => ZC - AA * Math.sqrt(1 + r * r / BB2);
 
-export function createTelescope({ isNight }) {
+export function createTelescope({ isNight, onComplete }) {
   const $ = s => document.querySelector(s);
   const root = $('#tel'), CV = $('#cvTel'), EYE = $('#telEyeCv'), SEC = $('#cvSec');
   let ren = null, scene = null, cam = null, ready = false, open = false, raf = 0;
+  let viewer = null, viewerKey = null, completed = false;    // 접안부 옆에 서서 들여다보는 캐릭터
   let scope = null, optic = null, gMirror = null, gRay = null, gPrin = null, gLabel = null, moon = null, moonLabel = null, focusGlow = null, f1Glow = null;
   let rays = [], labels = [], envT = null, TUBE = null, EYES = null, stars = null;
   let prin = false, step = 1, tPrev = 0, dragged = false, night = true;
@@ -316,7 +319,7 @@ export function createTelescope({ isNight }) {
   const worldOf = (z, y = 0) => { const v = new THREE.Vector3(0, y, z); optic.localToWorld(v); return v; };
   function camTo(s) {
     if (!optic) return;
-    if (s === 1) { const mt2 = new THREE.Vector3(0, MOUNT_Y, 0); goalTgt = moon ? mt2.clone().lerp(moon.position, .44) : mt2; camGoal.r = 74; camGoal.th = 2.34; camGoal.ph = 1.44; }
+    if (s === 1) { const mt2 = new THREE.Vector3(0, MOUNT_Y - 2, 0); goalTgt = moon ? mt2.clone().lerp(moon.position, .3) : mt2; camGoal.r = 80; camGoal.th = 2.34; camGoal.ph = 1.44; }   // 망원경·달·서 있는 캐릭터가 한 화면에
     else if (s === 2) { goalTgt = worldOf(-13); camGoal.r = 40; camGoal.th = 1.62; camGoal.ph = 1.30; }
     else if (s === 3) { goalTgt = worldOf(-9.5); camGoal.r = 40; camGoal.th = 1.48; camGoal.ph = 1.30; }
     else { const f = FOCUS(); goalTgt = worldOf(f.z - 1.5, f.y); camGoal.r = 23; camGoal.th = 4.62; camGoal.ph = 1.42; }
@@ -551,6 +554,7 @@ export function createTelescope({ isNight }) {
     if (focusGlow && focusGlow.visible) focusGlow.scale.set(q, q, 1);
     if (f1Glow && f1Glow.visible) f1Glow.scale.set(q, q, 1);
     if (moon) moon.rotation.y += dt * 0.012;
+    if (viewer) viewer.update(dt, 0, true);
     const lk = orb.r / 20;
     scene.traverse(o => { if (o.isSprite && o.userData.bw) o.scale.set(o.userData.bw * lk, o.userData.bh * lk, 1); });
     if (PL.on && scope && joyActive) {
@@ -568,6 +572,7 @@ export function createTelescope({ isNight }) {
       if (focusGlow) { const k = Math.max(0.4, 2.6 - PL.blur * 10); focusGlow.scale.set(k, k, 1); focusGlow.visible = PL.err < 1.6; }
       const ok1 = PL.err <= 0.3, ok2 = Math.abs(PL.dSec) <= 1, ok3 = ok1 && ok2 && PL.blur * MM3 <= 0.9;
       PL.m1 = ok1; PL.m2 = ok2; PL.m3 = ok3;
+      if (ok3 && !completed) { completed = true; setTimeout(() => onComplete && onComplete(), 900); }   // 미션 3개 완료 → 도감 카드
       $('#tcM1').classList.toggle('done', ok1); $('#tcM2').classList.toggle('done', ok2); $('#tcM3').classList.toggle('done', ok3);
       $('#telStat').textContent = '오차 ' + PL.err.toFixed(2) + '° · 초점 사이 ' + Math.abs(PL.dSec).toFixed(1) + ' mm · 흐림 ' + (PL.blur * MM3).toFixed(1) + ' mm' + (ok3 ? ' — 정렬 완료 ✓' : '');
     }
@@ -599,10 +604,30 @@ export function createTelescope({ isNight }) {
     if (!night && PL.on) setPlay(false);
     applyStep();
   }
-  function openTel() {
+  // 캐릭터가 뒷발로 서서(단붕이는 그냥 서서) 접안부를 들여다보는 모습
+  function placeViewer(char) {
+    if (viewer && viewerKey === char) return;
+    if (viewer) scene.remove(viewer.object);
+    viewerKey = char;
+    viewer = char === 'bear' ? createDanbung() : createBerry();
+    const eye = worldOf(F2 + 2.4, -0.4);                         // 접안부 바로 뒤
+    const back = new THREE.Vector3(0, 0, 1).applyQuaternion(scope.quaternion); back.y = 0; back.normalize();
+    const feet = eye.clone().addScaledVector(back, char === 'bear' ? 3.2 : 2.6); feet.y = GROUND;
+    const h = eye.y - GROUND;
+    const g = new THREE.Group();
+    g.position.copy(feet);
+    g.lookAt(eye.x, GROUND, eye.z);                                // 정면(+z)이 접안부 쪽
+    const o = viewer.object;
+    if (char === 'bear') { o.scale.setScalar(h / 1.75); }
+    else { o.rotation.x = -Math.PI / 2 + 0.35; o.position.y = 0.55 * (h / 1.15); o.scale.setScalar(h / 1.15); }   // 고양이: 몸을 세워 앞발을 뻗음
+    g.add(o);
+    viewer.object = g;
+    scene.add(g);
+  }
+  function openTel(char = 'cat') {
     if (open) return;
     root.hidden = false; open = true;
-    init(); resize(); applyNight();
+    init(); resize(); placeViewer(char); applyNight();
     step = 1; dragged = false; eyeT0 = performance.now(); applyStep();
     tPrev = 0; raf = requestAnimationFrame(tick);
   }
