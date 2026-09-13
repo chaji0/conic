@@ -2,11 +2,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createBerry } from './cat.js';
+import { createDanbung } from './bear.js';
 import { buildWorld, project, pointInPoly } from './world.js';
 import { createTerrain } from './terrain.js';
 import { buildCampus } from './campus.js';
 import { createTelescope } from './telescope.js';
-import { createCars, createBikes } from './vehicles.js';
+import { createCars, createBikes, createRideBike } from './vehicles.js';
 import { createSky, phaseOf } from './sky.js';
 import { createMultiplayer, ROOM } from './multiplayer.js';
 
@@ -34,10 +35,15 @@ const BERRY_GLB_YAW = 0;       // Meshy 모델이 +z 가 아닌 방향을 보고
 const SUN_DIR = new THREE.Vector3(-0.45, 0.8, 0.4).normalize();
 const FOG_DAY = 0xcfe6f5;
 
-// ---- 이동 (단붕이 탐험과 같은 값) ----
-const PLAYER_SPEED = 11.5;     // m/s. 2km 지도라 실제 걸음보다 훨씬 빠르게 둔 값
+// ---- 이동 (단붕이 탐험과 같은 조작) ----
+// 캐릭터별 걷기 속도(m/s, 2km 지도라 실제 걸음보다 훨씬 빠름)와 카메라가 보는 높이. 베리(고양이)가 단붕이보다 빠르다.
+const CHARS = {
+  cat: { name: '베리', speed: 14.5, eye: 0.9, anim: 0.4 },
+  bear: { name: '단붕이', speed: 11.5, eye: 1.5, anim: 0.35 },
+};
 const PLAYER_TURN = 2.4;       // rad/s
 const RUN_MULT = 1.9;
+const BIKE_MULT = 2.0;         // 단붕이가 자전거를 타면 2배
 const ZOOM_MIN = 5, ZOOM_MAX = 46;
 const HOLD_MS = 300, HOLD_MOVE_DEADZONE = 14, JOY_MAX = 70, TAP_SLOP = 8;
 
@@ -141,13 +147,36 @@ async function main() {
   }
   const bikes = createBikes(scene, bikeSpots, terrain.y);
 
-  // ---------- 베리 ----------
-  setLoad('베리 깨우는 중…');
+  // ---------- 캐릭터: 베리(고양이) / 단붕이(곰돌이) — 시작 화면에서 고른다 ----------
+  setLoad('베리와 단붕이 깨우는 중…');
   let berry = createBerry();
   if (await exists(BERRY_GLB)) {
     try { berry = await loadBerryModel(); } catch (e) { console.warn('berry.glb 불러오기 실패 — 기본 베리 사용', e); }
   }
+  const danbung = createDanbung();
+  const avatars = { cat: berry, bear: danbung };
+  let charKey = 'cat', avatar = berry;
   scene.add(berry.object);
+  const rideBike = createRideBike();
+  scene.add(rideBike);
+  let riding = false, nearBike = null;
+  function setCharacter(key) {
+    scene.remove(avatar.object);
+    charKey = key; avatar = avatars[key];
+    scene.add(avatar.object);
+    if (riding) dismount();
+  }
+  function mount(b) {
+    riding = true; nearBike = null;
+    rideBike.visible = true;
+    danbung.setRiding(true);
+    toast('🚲 자전거를 탔어요! 2배 빨라요 · E 로 내리기');
+  }
+  function dismount() {
+    riding = false;
+    rideBike.visible = false;
+    danbung.setRiding(false);
+  }
   async function loadBerryModel() {
     const gltf = await loader.loadAsync(BERRY_GLB);
     const obj = gltf.scene;
@@ -247,7 +276,7 @@ async function main() {
     if (e.repeat) return;
     if (telescope.isOpen) { if (code === 'Escape') telescope.close(); return; }
     switch (code) {
-      case 'KeyE': if (cardOpen) closeCard(); else if (nearTelescope) telescope.open(); else if (nearest) openCard(nearest); break;
+      case 'KeyE': interact(); break;
       case 'Escape': closeCard(); break;
       case 'KeyM': setMapShown(!mapShown); break;
       case 'KeyR': respawn(); break;
@@ -378,11 +407,16 @@ async function main() {
     el.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); step(); clearInterval(timer); timer = setInterval(step, 90); });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => clearInterval(timer));
   }
-  function onTap() {
+  // E / 톡: 카드 닫기 > 자전거 내리기 > 천문대 > 자전거 타기 > 랜드마크 카드
+  function interact() {
     if (!started || telescope.isOpen) return;
     if (cardOpen) { closeCard(); return; }
-    if (nearTelescope) telescope.open(); else if (nearest) openCard(nearest);
+    if (riding) { dismount(); toast('🚶 자전거에서 내렸어요'); return; }
+    if (nearTelescope) { telescope.open(); return; }
+    if (nearBike) { mount(nearBike); return; }
+    if (nearest) openCard(nearest);
   }
+  const onTap = interact;
 
   function respawn() {
     player.pos.set(spawn.x, terrain.y(spawn.x, spawn.z), spawn.z);
@@ -397,9 +431,9 @@ async function main() {
     if (input.left) player.yaw += PLAYER_TURN * dt;
     if (input.right) player.yaw -= PLAYER_TURN * dt;
     const move = (input.fwd ? 1 : 0) - (input.back ? 1 : 0);
-    player.running = !!input.run && move !== 0;
+    player.running = !!input.run && move !== 0 && !riding;
     if (move !== 0) {
-      const spd = PLAYER_SPEED * (player.running ? RUN_MULT : 1);
+      const spd = CHARS[charKey].speed * (riding ? BIKE_MULT : player.running ? RUN_MULT : 1);
       _step.set(player.pos.x + Math.sin(player.yaw) * move * spd * dt, player.pos.y, player.pos.z + Math.cos(player.yaw) * move * spd * dt);
       world.collide(_step, 0.45);
       player.speed = Math.hypot(_step.x - player.pos.x, _step.z - player.pos.z) / Math.max(dt, 1e-4);
@@ -414,7 +448,7 @@ async function main() {
   function updateCamera(dt) {
     const moving = input.fwd || input.back || input.left || input.right;
     if (moving && (!orbit.dragging || touchMoveMode)) orbit.azimuth = angleDamp(orbit.azimuth, player.yaw + Math.PI, 1 - Math.pow(0.0005, dt), 1);
-    const fx = player.pos.x, fy = player.pos.y + 0.9, fz = player.pos.z;
+    const fx = player.pos.x, fy = player.pos.y + CHARS[charKey].eye + (riding ? 0.5 : 0), fz = player.pos.z;
     const cp = Math.cos(orbit.pitch);
     camDir.set(Math.sin(orbit.azimuth) * cp, Math.sin(orbit.pitch), Math.cos(orbit.azimuth) * cp);
     let d = orbit.radius;
@@ -444,11 +478,23 @@ async function main() {
       if (d < lm.radius && d < nd) { nd = d; nearest = lm; }
     }
     if (nearest && !found.has(nearest.id)) discover(nearest);
-    const ts = campus.telescopeSpot;
-    nearTelescope = Math.hypot(player.pos.x - ts.x, player.pos.z - ts.z) < 7;
+    const ts = campus.telescopeSpot, dTel = Math.hypot(player.pos.x - ts.x, player.pos.z - ts.z);
+    nearTelescope = dTel < 7 && !riding;
+    // 천문대 표지판: 가까이 갈수록 반짝임 (30m 안에서 시작, 7m 안에서는 빠르게)
+    const glow = dTel < 30 ? (0.35 + 0.35 * Math.sin(t * (dTel < 7 ? 8 : 3))) * (1 - Math.max(0, dTel - 7) / 23) : 0;
+    if (ts.signMat) ts.signMat.emissiveIntensity = glow;
+    if (ts.roofMat) ts.roofMat.emissiveIntensity = glow * 0.8;
+    // 단붕이는 거치대 자전거 옆에서 탈 수 있다
+    nearBike = null;
+    if (charKey === 'bear' && !riding && bikes.list) {
+      let bd = 3.5;
+      for (const b of bikes.list) { const d = Math.hypot(player.pos.x - b.x, player.pos.z - b.z); if (d < bd) { bd = d; nearBike = b; } }
+    }
     const prompt = $('#prompt');
-    prompt.hidden = !started || cardOpen || telescope.isOpen || !(nearest || nearTelescope);
-    if (nearTelescope) prompt.innerHTML = `<kbd>E</kbd> 🔭 옥상 천문대에 올라가기 (화면을 톡 눌러도 돼요)`;
+    prompt.hidden = !started || cardOpen || telescope.isOpen || !(nearest || nearTelescope || nearBike || riding);
+    if (riding) prompt.innerHTML = `<kbd>E</kbd> 🚲 자전거에서 내리기`;
+    else if (nearTelescope) prompt.innerHTML = `<kbd>E</kbd> 🔭 옥상 천문대에 올라가기 (화면을 톡 눌러도 돼요)`;
+    else if (nearBike) prompt.innerHTML = `<kbd>E</kbd> 🚲 자전거 타기 (2배 빨라요)`;
     else if (nearest) prompt.innerHTML = `<kbd>E</kbd> ${KIND[nearest.kind]?.[0] ?? '📍'} ${nearest.name} 둘러보기 (화면을 톡 눌러도 돼요)`;
   }
   function discover(lm) {
@@ -563,19 +609,21 @@ async function main() {
       for (const p of list) {
         seen.add(p.id);
         let peer = peers.get(p.id);
+        if (peer && peer.c !== p.c) { scene.remove(peer.cat.object); peers.delete(p.id); peer = null; }
         if (!peer) {
-          const cat = createBerry();
+          const cat = p.c === 'bear' ? createDanbung() : createBerry();
           cat.object.position.set(p.x, 0, p.z);
           const tag = makeLabel(p.name, true);
-          tag.position.y = 1.9;
+          tag.position.y = cat.height + 0.7;
           tag.scale.set(1.9 * tag.userData.aspect, 1.9, 1);
           cat.object.add(tag);
           scene.add(cat.object);
-          peer = { cat, tag, name: p.name, x: p.x, z: p.z, ry: p.ry };
+          peer = { cat, tag, name: p.name, x: p.x, z: p.z, ry: p.ry, c: p.c };
           peers.set(p.id, peer);
         }
-        if (peer.name !== p.name) { peer.cat.object.remove(peer.tag); peer.tag = makeLabel(p.name, true); peer.tag.position.y = 1.9; peer.tag.scale.set(1.9 * peer.tag.userData.aspect, 1.9, 1); peer.cat.object.add(peer.tag); peer.name = p.name; }
+        if (peer.name !== p.name) { peer.cat.object.remove(peer.tag); peer.tag = makeLabel(p.name, true); peer.tag.position.y = peer.cat.height + 0.7; peer.tag.scale.set(1.9 * peer.tag.userData.aspect, 1.9, 1); peer.cat.object.add(peer.tag); peer.name = p.name; }
         peer.x = p.x; peer.z = p.z; peer.ry = p.ry;
+        if (peer.cat.setRiding) peer.cat.setRiding(p.bike);
       }
       for (const [id, peer] of peers) if (!seen.has(id)) { scene.remove(peer.cat.object); peers.delete(id); }
     },
@@ -587,24 +635,37 @@ async function main() {
       o.position.x += dx; o.position.z += dz;
       o.position.y = terrain.y(o.position.x, o.position.z);
       o.rotation.y = peer.ry;
-      peer.cat.update(dt, Math.hypot(dx, dz) / Math.max(dt, 1e-4) * 0.4, true);
+      peer.cat.update(dt, Math.hypot(dx, dz) / Math.max(dt, 1e-4) * (peer.c === 'bear' ? 0.35 : 0.4), true);
     }
   }
 
   // ---------- 시작 · 메인 루프 ----------
   let playerName = '베리';
+  // 시작 화면 캐릭터 고르기 → 미리보기 모델 교체
+  for (const el of document.querySelectorAll('input[name=char]')) el.addEventListener('change', () => { if (el.checked) setCharacter(el.value); });
   function start() {
     started = true;
     const typed = $('#player-name').value.trim();
-    playerName = typed ? typed.slice(0, 10) : '베리';
+    playerName = typed ? typed.slice(0, 10) : CHARS[charKey].name;
     $('#loading').hidden = true;
     $('#hud').hidden = false;
     clock.getDelta();
-    toast(`🐈 ${playerName}, 단대부고 앞에 도착했어요! ↑ 로 걷고 ←→ 로 돌아요`);
-    mp.connect(playerName);
+    toast(`${charKey === 'bear' ? '🐻' : '🐈'} ${playerName}, 단대부고 앞에 도착했어요! ↑ 로 걷고 ←→ 로 돌아요`);
+    mp.connect(playerName, charKey);
   }
   $('#start').addEventListener('click', start);
+  // 나가기: 접속 목록에서 나를 지우고 작별 화면. 창을 닫거나 다른 페이지로 가도 지운다
+  function leaveGame() {
+    if (!started) return;
+    mp.leave();
+    started = false;
+    $('#hud').hidden = true;
+    $('#goodbye').hidden = false;
+  }
+  $('#leave-btn').addEventListener('click', leaveGame);
+  $('#goodbye-again').addEventListener('click', () => location.reload());
   addEventListener('beforeunload', () => mp.leave());
+  addEventListener('pagehide', () => mp.leave());
 
   let frame = 0;
   renderer.setAnimationLoop(() => {
@@ -617,9 +678,10 @@ async function main() {
     campus.setNight(night);
     if (telescope.isOpen && frame % 30 === 0) telescope.refreshNight();
     updatePlayer(dt);
-    berry.object.position.copy(player.pos);
-    berry.object.rotation.y = player.yaw;
-    berry.update(dt, player.speed * 0.4, true);
+    avatar.object.position.copy(player.pos);
+    avatar.object.rotation.y = player.yaw;
+    avatar.update(dt, player.speed * CHARS[charKey].anim, true);
+    if (riding) { rideBike.position.copy(player.pos); rideBike.rotation.y = player.yaw; }
     updateCamera(dt);
     sky.follow(player.pos.x, player.pos.z);
     sun.position.set(player.pos.x + SUN_DIR.x * 300, SUN_DIR.y * 300, player.pos.z + SUN_DIR.z * 300);
@@ -630,12 +692,12 @@ async function main() {
     if (started) {
       if (frame % 6 === 0) updateHud();
       if (mapShown && frame % 3 === 0) drawBigMap();
-      mp.send(t, player.pos.x, player.pos.z, player.yaw);
+      mp.send(t, player.pos.x, player.pos.z, player.yaw, riding);
     }
     renderer.render(scene, camera);
   });
 
-  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope };   // 디버그·테스트용
+  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope, setCharacter, get charKey() { return charKey; }, get riding() { return riding; }, get avatar() { return avatar; }, bikes, mount, interact };   // 디버그·테스트용
   setLoad(`건물 ${world.buildingCount.toLocaleString()}채 · 나무 ${world.treeCount.toLocaleString()}그루 · 가로등 ${world.lampCount.toLocaleString()}개 · 담장 ${(world.wallLen / 1000).toFixed(1)}km · 자동차 ${cars.count}대 · 자전거 ${bikes.count}대 · 방 "${ROOM}"`);
   $('#start').hidden = false;
 }

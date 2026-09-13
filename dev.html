@@ -36,6 +36,19 @@
   #loading .sub { margin: 0 0 16px; color: #6f5160; line-height: 1.7; font-size: 15px; }
   #loading .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; text-align: left; margin: 0 auto 18px;
     width: fit-content; font-size: 13.5px; color: #5b4350; }
+  #char-row { display: flex; gap: 10px; justify-content: center; margin: 0 0 12px; }
+  .char { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 200px; padding: 10px 8px; border-radius: 14px; border: 2px solid #f3c6d6; background: #fff; cursor: pointer; }
+  .char input { display: none; }
+  .char .ic { font-size: 30px; }
+  .char b { color: #a3134f; font-size: 15px; }
+  .char small { color: #7a5a69; font-size: 11.5px; }
+  .char:has(input:checked) { border-color: #c2185b; background: #fff0f5; box-shadow: 0 0 0 3px rgba(194,24,91,.15); }
+  #leave-btn { margin-left: 8px; border: 1px solid #f3c6d6; background: #fff; color: #a3134f; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  #goodbye { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; background: radial-gradient(circle at 50% 38%, #fff7ee, #f7d6e2 72%); }
+  #goodbye .box { padding: 34px 40px; text-align: center; }
+  #goodbye h2 { margin: 0 0 8px; color: #a3134f; }
+  #goodbye p { margin: 0 0 18px; color: #6f5160; }
+  #goodbye button { border: 0; background: #c2185b; color: #fff; font-weight: 800; padding: 10px 26px; border-radius: 999px; }
   #name-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 14px; font-size: 13.5px; color: #6f5160; }
   #player-name { font: inherit; font-size: 15px; padding: 8px 14px; border-radius: 10px; border: 2px solid #f3c6d6; width: 180px; text-align: center; }
   #load-msg { margin: 0 0 14px; color: #9a6c80; font-size: 13px; min-height: 1.4em; line-height: 1.5; }
@@ -184,7 +197,11 @@
       <span>두 손가락</span><span>확대·축소</span>
       <span><kbd>E</kbd> <kbd>M</kbd> <kbd>R</kbd></span><span>둘러보기 · 지도 접기/펴기 · 단대부고로 돌아가기</span>
     </div>
-    <div id="name-row"><label for="player-name">내 이름</label><input type="text" id="player-name" maxlength="10" placeholder="베리"></div>
+    <div id="char-row">
+      <label class="char"><input type="radio" name="char" value="cat" checked><span class="ic">🐈</span><b>베리</b><small>흰 고양이 · 빠르고 날렵</small></label>
+      <label class="char"><input type="radio" name="char" value="bear"><span class="ic">🐻</span><b>단붕이</b><small>곰돌이 학생 · 자전거를 탈 수 있어요</small></label>
+    </div>
+    <div id="name-row"><label for="player-name">내 이름</label><input type="text" id="player-name" maxlength="10" placeholder="이름"></div>
     <p id="load-msg">준비 중…</p>
     <button id="start" hidden>산책 시작 🐾</button>
     <div class="credit">지도 데이터 © OpenStreetMap 기여자 (ODbL) · 같은 방(<code>?room=반이름</code>)에 들어온 친구들이 지도에 함께 보여요</div>
@@ -196,7 +213,7 @@
     <div class="t">🐈 베리의 대치동마실</div>
     <div id="where">📍 단대부고 근처</div>
     <div id="nearby"></div>
-    <div id="found">발견한 장소 0 / 0</div>
+    <div id="found">발견한 장소 0 / 0</div><button id="leave-btn">🚪 나가기</button>
   </div>
   <div id="mp-status" class="panel" hidden><span class="led"></span><span id="mp-status-text">접속하는 중...</span></div>
   <div id="bigmap" class="panel">
@@ -226,6 +243,15 @@
 </div>
 
 <div id="joystick" hidden><div id="joystick-knob"></div></div>
+
+<div id="goodbye" hidden>
+  <div class="box panel">
+    <div style="font-size:52px">👋</div>
+    <h2>수고했어요!</h2>
+    <p>오늘의 산책은 여기까지. 지도에서 내 자리도 지웠어요.</p>
+    <button id="goodbye-again">다시 산책하기</button>
+  </div>
+</div>
 
 <div id="tel" hidden>
   <canvas id="cvTel"></canvas>

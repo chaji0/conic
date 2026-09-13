@@ -28,13 +28,13 @@ function loadScript(src) {
 
 // onPeers(list: [{id, name, x, z, ry}]) · onStatus(state, text)
 export function createMultiplayer({ onPeers, onStatus }) {
-  let ref = null, db = null, lastSend = -999, myName = '베리';
+  let ref = null, db = null, lastSend = -999, myName = '베리', myChar = 'cat';
   const peers = new Map();
   const status = (state, text) => onStatus && onStatus(state, text);
   const count = () => status('live', peers.size ? `🟢 지금 ${peers.size + 1}명 접속 중` : '🟢 접속됨 · 친구를 기다리는 중');
 
-  async function connect(name) {
-    myName = name;
+  async function connect(name, char = 'cat') {
+    myName = name; myChar = char;
     if (!FIREBASE_CONFIG) return;
     status(null, '실시간 접속하는 중...');
     try {
@@ -54,9 +54,11 @@ export function createMultiplayer({ onPeers, onStatus }) {
       db.ref(`rooms/${ROOM}/players`).on('value', snap => {
         const val = snap.val() || {};
         peers.clear();
+        const now = Date.now();
         for (const [id, d] of Object.entries(val)) {
           if (id === MY_ID || !d) continue;
-          peers.set(id, { id, name: d.name || '친구', x: d.x || 0, z: d.z || 0, ry: d.ry || 0 });
+          if (d.t && now - d.t > 45000) continue;          // 45초 넘게 갱신이 없으면 끊긴 사람 (창을 닫다 만 경우)
+          peers.set(id, { id, name: d.name || '친구', x: d.x || 0, z: d.z || 0, ry: d.ry || 0, c: d.c || 'cat', bike: !!d.b });
         }
         onPeers([...peers.values()]);
         count();
@@ -67,11 +69,11 @@ export function createMultiplayer({ onPeers, onStatus }) {
     }
   }
   // 0.25초마다 내 위치 전송 (트래픽 절약)
-  function send(t, x, z, ry) {
+  function send(t, x, z, ry, bike = false) {
     if (!ref || t - lastSend < 0.25) return;
     lastSend = t;
-    ref.set({ name: myName, x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, ry: Math.round(ry * 100) / 100, t: Date.now() });
+    ref.set({ name: myName, c: myChar, b: bike ? 1 : 0, x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, ry: Math.round(ry * 100) / 100, t: Date.now() });
   }
-  function leave() { if (ref) ref.remove(); }
+  function leave() { if (ref) { try { ref.remove(); } catch { /* 이미 끊김 */ } ref = null; } }
   return { connect, send, leave, id: MY_ID };
 }

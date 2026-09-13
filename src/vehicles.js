@@ -161,6 +161,21 @@ function bikeGeometries() {
 }
 const BIKE_COLORS = [0x2f6fd3, 0xd3372f, 0x3fae5e, 0xf2c14e, 0x9b59b6, 0x2ec4b6, 0xff8c4d, 0x5a6b8a];
 
+// 플레이어가 타는 자전거 한 대 (앞 = +x 를 캐릭터 정면 +z 로 돌려 둔다)
+export function createRideBike(color = 0xf2c14e) {
+  const g = bikeGeometries();
+  const frame = new THREE.Mesh(g.frame, new THREE.MeshLambertMaterial({ vertexColors: true, color }));
+  const parts = new THREE.Mesh(g.parts, vcMat({}));
+  frame.castShadow = parts.castShadow = true;
+  const root = new THREE.Group();
+  const inner = new THREE.Group();
+  inner.add(frame, parts);
+  inner.rotation.y = Math.PI / 2;
+  root.add(inner);
+  root.visible = false;
+  return root;
+}
+
 // spots: [{x, z, yaw, count}] — 각 거치대에 count 대를 옆으로 2.2m 간격으로 세운다
 export function createBikes(scene, spots, terrainY = () => 0) {
   const list = [];

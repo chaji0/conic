@@ -123,6 +123,8 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
       dome.position.y = 0.2; tg.add(dome);
       const lbl = board(4.2, 1.0, textTexture('🔭 옥상 천문대', { bg: '#1e3a6e', fg: '#ffffff', font: 'bold 44px "Malgun Gothic",sans-serif', w: 420, h: 100 }), { double: true });
       lbl.position.y = 5.2; tg.add(lbl);
+      lbl.material.emissive = new THREE.Color(0xffd166); lbl.material.emissiveMap = lbl.material.map;
+      TEL.roofMat = lbl.material;
       group.add(tg);
     }
     if (st.gym) {                                                // 체육관 이름
@@ -155,6 +157,8 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
         TEL.x = mx + nx * 9; TEL.z = mz + nz * 9;               // 현관 앞 = 옥상 천문대로 올라가는 자리
         const telSign = board(2.6, 0.7, textTexture('🔭 옥상 천문대 ↑', { bg: '#1e3a6e', fg: '#ffffff', font: 'bold 40px "Malgun Gothic",sans-serif', w: 360, h: 96 }), { double: true });
         telSign.position.set(mx + nx * 6.5 + ux * 5, base + 2.4, mz + nz * 6.5 + uz * 5); telSign.rotation.y = yaw; group.add(telSign);
+        telSign.material.emissive = new THREE.Color(0xffd166); telSign.material.emissiveMap = telSign.material.map;   // 가까이 가면 반짝임
+        TEL.signMat = telSign.material;
         const tp = box(0.1, 2.4, 0.1, 0x3a3f48); tp.position.set(mx + nx * 6.5 + ux * 5, base + 1.2, mz + nz * 6.5 + uz * 5); group.add(tp);
         // 앞마당 (밝은 포장) + 게양대
         flatBuf.color(0xe6e1d6);
