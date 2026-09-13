@@ -48,7 +48,7 @@ export const CARDS = [
   { id: 'lithotripter', name: '내과 체외 충격파 쇄석기', kind: '타원', place: 'KB국민은행 건물 내과', how: '시술 체험에서 결석 완전 파쇄' },
 ];
 
-export function createCollection({ toast }) {
+export function createCollection({ toast, onPick }) {
   const $ = s => document.querySelector(s);
   const root = $('#dogam'), grid = $('#dogam-grid'), badge = $('#dogam-btn');
   let got = new Set();
@@ -62,7 +62,7 @@ export function createCollection({ toast }) {
           <div class="face back">${emblemSVG(true)}<div class="lbl">단대부고</div></div>
           <div class="face front">${ART[c.id]}</div>
         </div>
-        <div class="meta"><b>${got.has(c.id) ? c.name : '???'}</b><span>${got.has(c.id) ? c.kind : c.how}</span></div>
+        <div class="meta"><b>${got.has(c.id) ? c.name : '???'}</b><span>${got.has(c.id) ? c.kind : '카드를 누르면 가는 길을 알려 줘요'}</span></div>
       </div>`).join('');
     badge.textContent = `📖 도감 ${got.size}/${CARDS.length}`;
   }
@@ -83,7 +83,11 @@ export function createCollection({ toast }) {
       toast && toast(`📖 도감에 새 카드! ${c.name}`, 4000);
     }
   }
-  root.addEventListener('click', e => { if (e.target === root || e.target.id === 'dogam-close') hide(); });
+  root.addEventListener('click', e => {
+    if (e.target === root || e.target.id === 'dogam-close') { hide(); return; }
+    const card = e.target.closest('.dcard');
+    if (card && onPick) onPick(card.dataset.id, got.has(card.dataset.id));     // 카드를 누르면 어디로 가야 하는지 알려 줌
+  });
   badge.addEventListener('click', () => (root.hidden ? show() : hide()));
   render();
   return { show, hide, collect, has: id => got.has(id), get isOpen() { return !root.hidden; } };

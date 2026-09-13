@@ -27,11 +27,6 @@ const KIND = {
   school: ['🏫', '학교'], station: ['🚇', '지하철역'], apartment: ['🏢', '아파트 단지'], tower: ['🏙️', '초고층 단지'],
   park: ['🌳', '공원'], library: ['📚', '도서관'], stream: ['🌊', '하천'],
 };
-const FOUND_KEY = 'berry-daechi:found';
-const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 불가 환경 */ } },
-};
 const BERRY_GLB = 'assets/models/berry.glb';
 const BERRY_GLB_YAW = 0;       // Meshy 모델이 +z 가 아닌 방향을 보고 있으면 여기서 돌린다(라디안)
 const SUN_DIR = new THREE.Vector3(-0.45, 0.8, 0.4).normalize();
@@ -204,11 +199,7 @@ async function main() {
     };
   }
 
-  // ---------- 랜드마크 표시 ----------
-  const found = new Set(store.get(FOUND_KEY, []).filter(id => landmarks.some(l => l.id === id)));
-  const beamGeo = new THREE.CylinderGeometry(1.1, 1.1, 90, 16, 1, true).translate(0, 45, 0);
-  const ringGeo = new THREE.RingGeometry(2.6, 3.4, 40).rotateX(-Math.PI / 2);
-  const PINK = 0xff5c9a, MINT = 0x2fcf9c;
+  // ---------- 랜드마크 이름표 ----------
 
   function makeLabel(text, small = false) {
     const font = `700 ${small ? 36 : 44}px "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI Emoji", sans-serif`;
@@ -239,19 +230,10 @@ async function main() {
   for (const lm of landmarks) {
     const group = new THREE.Group();
     group.position.set(lm.x, terrain.y(lm.x, lm.z), lm.z);
-    const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.2, depthWrite: false }));
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
-    ring.position.y = 0.2;
     const label = makeLabel(`${KIND[lm.kind]?.[0] ?? '📍'} ${lm.name}`);
-    group.add(beam, ring, label);
+    group.add(label);
     scene.add(group);
-    lm.marker = { beam, ring, label };
-    paintMarker(lm);
-  }
-  function paintMarker(lm) {
-    const c = found.has(lm.id) ? MINT : PINK;
-    lm.marker.beam.material.color.setHex(c);
-    lm.marker.ring.material.color.setHex(c);
+    lm.marker = { label };
   }
 
   // ---------- 플레이어 · 입력 (단붕이 방식: 회전 + 전진/후진, 톡/끌기/꾹 누르기, 핀치) ----------
@@ -264,7 +246,23 @@ async function main() {
   const keyMap = { ArrowUp: 'fwd', KeyW: 'fwd', ArrowDown: 'back', KeyS: 'back', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ShiftLeft: 'run', ShiftRight: 'run' };
   const clock = new THREE.Clock();
   let started = false, cardOpen = false, nearest = null, mapShown = true, nearTelescope = false, nearClinic = false;
-  const dogam = createCollection({ toast: (t, ms) => toast(t, ms) });
+  // 도움말: 도감에서 카드를 누르면 어디로 갈지 알려 주고 지도에 별을 찍는다. 한참 돌아다니기만 하면 도감을 눌러 보라고 귀띔
+  let hintTarget = null, wanderT = 0, dogamOpened = false;
+  const HINTS = {
+    telescope: { text: '🏫 학교 본관 입구로 가 보자! 현관 앞 표지판 근처에서 E', label: '옥상 천문대', spot: () => campus.telescopeSpot },
+    lithotripter: { text: '🏥 학교 아래 KB국민은행 건물의 내과로 가 보자! 간판 근처에서 E', label: '내과', spot: () => campus.clinicSpot },
+  };
+  const dogam = createCollection({
+    toast: (t, ms) => toast(t, ms),
+    onPick(id, got) {
+      const h = HINTS[id];
+      if (!h || got) return;
+      const s = h.spot();
+      hintTarget = { x: s.x, z: s.z, label: h.label, id };
+      dogam.hide();
+      toast(h.text, 5000);
+    },
+  });
   const telescope = createTelescope({ isNight: () => sky.isNight, onComplete: () => dogam.collect('telescope') });
   const litho = createLithotripter({ onCollected: () => dogam.collect('lithotripter') });
   const overlayOpen = () => telescope.isOpen || litho.isOpen || dogam.isOpen;
@@ -479,9 +477,7 @@ async function main() {
     for (const lm of landmarks) {
       const d = Math.hypot(player.pos.x - lm.x, player.pos.z - lm.z);
       lm.dist = d;
-      const { beam, ring, label } = lm.marker;
-      ring.scale.setScalar(1 + Math.sin(t * 2.4 + lm.x) * 0.07);
-      beam.material.opacity = d < lm.radius ? 0.08 : 0.2;
+      const { label } = lm.marker;
       const s = clamp(d / 60, 1, 6) * 2.8;
       label.scale.set(s * label.userData.aspect, s, 1);
       label.position.y = 12 + s * 1.2;
@@ -489,7 +485,6 @@ async function main() {
       label.visible = label.material.opacity > 0.02;
       if (d < lm.radius && d < nd) { nd = d; nearest = lm; }
     }
-    if (nearest && !found.has(nearest.id)) discover(nearest);
     const ts = campus.telescopeSpot, dTel = Math.hypot(player.pos.x - ts.x, player.pos.z - ts.z);
     nearTelescope = dTel < 7 && !riding;
     // 천문대 표지판: 가까이 갈수록 반짝임 (30m 안에서 시작, 7m 안에서는 빠르게)
@@ -513,13 +508,6 @@ async function main() {
     else if (nearClinic) prompt.innerHTML = `<kbd>E</kbd> 🏥 내과 들어가기 — 쇄석기 시술 체험`;
     else if (nearBike) prompt.innerHTML = `<kbd>E</kbd> 🚲 자전거 타기 (2배 빨라요)`;
     else if (nearest) prompt.innerHTML = `<kbd>E</kbd> ${KIND[nearest.kind]?.[0] ?? '📍'} ${nearest.name} 둘러보기 (화면을 톡 눌러도 돼요)`;
-  }
-  function discover(lm) {
-    found.add(lm.id);
-    store.set(FOUND_KEY, [...found]);
-    paintMarker(lm);
-    if (found.size === landmarks.length) toast(`🎉 모든 장소를 발견했어요! 베리는 이제 대치동 토박이 (${found.size}/${landmarks.length})`, 5000);
-    else toast(`🐾 새 장소 발견! ${lm.name} (${found.size}/${landmarks.length})`);
   }
   const DIRS = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
   function openCard(lm) {
@@ -557,7 +545,6 @@ async function main() {
     $('#where').textContent = `📍 ${road ?? '골목 · 단지 안'}${near ? ` · ${near.name} 근처` : ''}`;
     const shops = world.poisNear(player.pos.x, player.pos.z, 35);
     $('#nearby').textContent = shops.length ? `주변: ${shops.map(p => p.n).join(' · ')}` : '';
-    $('#found').textContent = `발견한 장소 ${found.size} / ${landmarks.length}`;
     const ph = phaseOf(clock.elapsedTime);
     const badge = $('#time-badge');
     badge.textContent = ph.text;
@@ -589,17 +576,24 @@ async function main() {
     bg.textAlign = 'center'; bg.textBaseline = 'middle';
     const dotR = Math.max(4, 7 * dpr * cw / 520);
     for (const lm of landmarks) {
-      const x = (lm.x - B.minX) * k, y = (lm.z - B.minZ) * k, got = found.has(lm.id);
+      const x = (lm.x - B.minX) * k, y = (lm.z - B.minZ) * k;
       bg.beginPath(); bg.arc(x, y, dotR, 0, Math.PI * 2);
-      bg.fillStyle = got ? '#2fcf9c' : '#ff5c9a'; bg.fill();
+      bg.fillStyle = '#ff5c9a'; bg.fill();
       bg.lineWidth = 1.5 * dpr; bg.strokeStyle = '#fff'; bg.stroke();
       if (cw >= 300) {
         bg.font = `700 ${Math.max(9, 10.5 * dpr * cw / 520)}px "Malgun Gothic", sans-serif`;
         bg.lineWidth = 3 * dpr; bg.strokeStyle = 'rgba(255,255,255,.95)';
-        const name = got ? lm.name : '???';
-        bg.strokeText(name, x, y + dotR + 7 * dpr);
-        bg.fillStyle = '#5a2340'; bg.fillText(name, x, y + dotR + 7 * dpr);
+        bg.strokeText(lm.name, x, y + dotR + 7 * dpr);
+        bg.fillStyle = '#5a2340'; bg.fillText(lm.name, x, y + dotR + 7 * dpr);
       }
+    }
+    // 도감에서 고른 목표: 지도 위에 깜빡이는 별 + 이름
+    if (hintTarget) {
+      const x = (hintTarget.x - B.minX) * k, y = (hintTarget.z - B.minZ) * k, r = dotR * (1.6 + 0.5 * Math.sin(clock.elapsedTime * 6));
+      bg.beginPath(); bg.arc(x, y, r, 0, Math.PI * 2); bg.fillStyle = 'rgba(255,209,102,.55)'; bg.fill();
+      bg.font = `${Math.max(12, 16 * dpr * cw / 520)}px "Segoe UI Emoji", sans-serif`; bg.fillText('⭐', x, y);
+      bg.font = `700 ${Math.max(9, 11 * dpr * cw / 520)}px "Malgun Gothic", sans-serif`; bg.lineWidth = 3 * dpr; bg.strokeStyle = '#fff';
+      bg.strokeText(hintTarget.label, x, y - r - 6 * dpr); bg.fillStyle = '#a3134f'; bg.fillText(hintTarget.label, x, y - r - 6 * dpr);
     }
     for (const p of peerList) {
       const x = (p.x - B.minX) * k, y = (p.z - B.minZ) * k;
@@ -707,6 +701,10 @@ async function main() {
     updateLandmarks(t);
     updatePeers(dt);
     if (started) {
+      // 목표에 닿으면 별을 지우고, 아직 도감을 안 봤으면 90초마다 귀띔
+      if (hintTarget && Math.hypot(player.pos.x - hintTarget.x, player.pos.z - hintTarget.z) < 9) hintTarget = null;
+      if (dogam.isOpen) dogamOpened = true;
+      if (!overlayOpen() && !hintTarget) { wanderT += dt; if (wanderT > (dogamOpened ? 180 : 60)) { wanderT = 0; toast('🧭 계속 돌아다니기만 하면 헷갈리죠? 📖 도감을 눌러 보세요!', 5000); } }
       if (frame % 6 === 0) updateHud();
       if (mapShown && frame % 3 === 0) drawBigMap();
       mp.send(t, player.pos.x, player.pos.z, player.yaw, riding);
@@ -714,7 +712,7 @@ async function main() {
     renderer.render(scene, camera);
   });
 
-  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope, setCharacter, get charKey() { return charKey; }, get riding() { return riding; }, get avatar() { return avatar; }, bikes, mount, interact, litho, dogam };   // 디버그·테스트용
+  window.__berry = { player, orbit, world, landmarks, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope, setCharacter, get charKey() { return charKey; }, get riding() { return riding; }, get avatar() { return avatar; }, bikes, mount, interact, litho, dogam };   // 디버그·테스트용
   setLoad(`건물 ${world.buildingCount.toLocaleString()}채 · 나무 ${world.treeCount.toLocaleString()}그루 · 가로등 ${world.lampCount.toLocaleString()}개 · 담장 ${(world.wallLen / 1000).toFixed(1)}km · 자동차 ${cars.count}대 · 자전거 ${bikes.count}대 · 방 "${ROOM}"`);
   $('#start').hidden = false;
 }

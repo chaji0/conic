@@ -167,7 +167,8 @@
   #telMoonNote { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); font-size: 12.5px; z-index: 5; }
 
   /* 도감 카드 */
-  #dogam-btn { pointer-events: auto; margin-left: 6px; border: 1px solid #f3c6d6; background: #fff; color: #a3134f; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .dcard { cursor: pointer; }
+  #dogam-btn { pointer-events: auto; border: 1px solid #f3c6d6; background: #fff; color: #a3134f; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
   #dogam { position: fixed; inset: 0; z-index: 22; display: grid; place-items: center; background: rgba(60, 30, 45, .35); padding: 20px; overflow: auto; }
   #dogam .box { padding: 22px 26px 18px; width: min(760px, 100%); }
   #dogam h2 { margin: 0 0 4px; color: #a3134f; font-size: 22px; }
@@ -277,7 +278,7 @@
     <div class="t">🐈 베리의 대치동마실</div>
     <div id="where">📍 단대부고 근처</div>
     <div id="nearby"></div>
-    <div id="found">발견한 장소 0 / 0</div><button id="dogam-btn">📖 도감 0/2</button><button id="leave-btn">🚪 나가기</button>
+    <div style="margin-top:8px"><button id="dogam-btn">📖 도감 0/2</button><button id="leave-btn">🚪 나가기</button></div>
   </div>
   <div id="mp-status" class="panel" hidden><span class="led"></span><span id="mp-status-text">접속하는 중...</span></div>
   <div id="bigmap" class="panel">
