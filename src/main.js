@@ -161,23 +161,29 @@ async function main() {
   scene.add(berry.object);
   const rideBike = createRideBike();
   scene.add(rideBike);
-  let riding = false, nearBike = null;
+  let riding = false, nearBike = null, parkedBike = null;   // parkedBike: 내려서 세워 둔 내 자전거 {x,z,yaw}
   function setCharacter(key) {
     scene.remove(avatar.object);
     charKey = key; avatar = avatars[key];
     scene.add(avatar.object);
-    if (riding) dismount();
+    if (riding) dismount(true);
   }
   function mount(b) {
-    riding = true; nearBike = null;
+    riding = true; nearBike = null; parkedBike = null;
     rideBike.visible = true;
     danbung.setRiding(true);
-    toast('🚲 자전거를 탔어요! 2배 빨라요 · E 로 내리기');
+    toast('🚲 자전거를 탔어요! 2배 빨라요 · 인도에서 E 로 내리기');
   }
-  function dismount() {
+  // 내리기: 차도 위에서는 안 되고(인도·골목·단지 안에서만), 내린 자리에 자전거가 그대로 서 있어 다시 탈 수 있다
+  function dismount(force = false) {
+    if (!force && world.onDriveRoad(player.pos.x, player.pos.z, 0.3)) { toast('🚧 차도에서는 내릴 수 없어요 — 인도로 올라가세요'); return false; }
     riding = false;
-    rideBike.visible = false;
     danbung.setRiding(false);
+    if (force) { rideBike.visible = false; parkedBike = null; return true; }
+    parkedBike = { x: player.pos.x, z: player.pos.z, yaw: player.yaw };
+    rideBike.position.copy(player.pos); rideBike.rotation.y = player.yaw;   // 그 자리에 세워 둠
+    player.pos.x -= Math.sin(player.yaw) * 1.2; player.pos.z -= Math.cos(player.yaw) * 1.2;   // 한 걸음 물러남
+    return true;
   }
   async function loadBerryModel() {
     const gltf = await loader.loadAsync(BERRY_GLB);
@@ -416,7 +422,7 @@ async function main() {
   function interact() {
     if (!started || overlayOpen()) return;
     if (cardOpen) { closeCard(); return; }
-    if (riding) { dismount(); toast('🚶 자전거에서 내렸어요'); return; }
+    if (riding) { if (dismount()) toast('🚶 자전거를 세워 뒀어요 — 다시 타려면 옆에서 E'); return; }
     if (nearTelescope) { telescope.open(charKey); return; }
     if (nearClinic) { litho.open(charKey); return; }
     if (nearBike) { mount(nearBike); return; }
@@ -498,6 +504,7 @@ async function main() {
     if (charKey === 'bear' && !riding && bikes.list) {
       let bd = 3.5;
       for (const b of bikes.list) { const d = Math.hypot(player.pos.x - b.x, player.pos.z - b.z); if (d < bd) { bd = d; nearBike = b; } }
+      if (parkedBike) { const d = Math.hypot(player.pos.x - parkedBike.x, player.pos.z - parkedBike.z); if (d < bd) { bd = d; nearBike = parkedBike; } }
     }
     const prompt = $('#prompt');
     prompt.hidden = !started || cardOpen || overlayOpen() || !(nearest || nearTelescope || nearClinic || nearBike || riding);

@@ -40,10 +40,11 @@ export function createTerrain(campus, gate, dirIn) {
   function y(x, z) {
     if (!inHill(x, z)) return 0;
     if (pointInPoly(campus, x, z)) {
-      // 정문 안쪽 18m 구간은 경사로 (옹벽 높이만큼 올라감), 그 밖은 평지
+      // 정문 안쪽 18m 구간은 경사로 (옹벽 높이만큼 올라감)
       const ax = (x - gate.x) * dirIn.x + (z - gate.z) * dirIn.z, side = Math.abs((x - gate.x) * px + (z - gate.z) * pz);
       if (side < 12 && ax < 18) return HILL_H + STEP * smooth(ax / 18);
-      return HILL_H + STEP;
+      // 경계에서 3m 안쪽까지는 옹벽 높이로 부드럽게 올라간다 (땅 격자와 캐릭터가 같은 높이를 쓰도록 계단 대신 짧은 비탈)
+      return HILL_H + STEP * smooth(closestOnPoly(campus, x, z) / 3);
     }
     const d = closestOnPoly(campus, x, z);
     return HILL_H * smooth(1 - d / R);

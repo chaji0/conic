@@ -51,16 +51,21 @@ export function createDanbung() {
   head.add(blob(sphere, M.muzzle, [0, 0.02, 0.3], [0.2, 0.14, 0.14]));
   head.add(blob(sphere, M.nose, [0, 0.09, 0.42], [0.07, 0.05, 0.05]));
   const mouth = blob(sphere, M.tongue, [0, -0.04, 0.37], [0.08, 0.04, 0.05]); head.add(mouth);
+  // 눈: 얼굴 표면에 붙은 납작한 흰 타원 + 큰 검은 동공 + 하이라이트 (마스코트 그림처럼 동글동글)
+  const eyes = [];
   for (const sx of [-1, 1]) {
-    head.add(blob(sphere, M.white, [sx * 0.15, 0.24, 0.32], [0.085, 0.1, 0.05]));
-    head.add(blob(sphere, M.eye, [sx * 0.14, 0.23, 0.36], [0.045, 0.06, 0.03]));
-    head.add(blob(sphere, M.white, [sx * 0.125, 0.26, 0.385], [0.014, 0.014, 0.01]));
-    head.add(blob(sphere, M.furDark, [sx * 0.16, 0.35, 0.3], [0.07, 0.015, 0.02]));      // 눈썹
+    const eye = new THREE.Group();
+    eye.position.set(sx * 0.14, 0.2, 0.33);
+    eye.rotation.y = sx * 0.35;                                       // 얼굴 곡면을 따라 살짝 바깥으로
+    eye.add(blob(sphere, M.white, [0, 0, 0], [0.075, 0.09, 0.03]));
+    eye.add(blob(sphere, M.eye, [0, -0.01, 0.025], [0.05, 0.062, 0.02]));
+    eye.add(blob(sphere, M.white, [sx * -0.018, 0.028, 0.045], [0.017, 0.017, 0.008]));
+    head.add(eye); eyes.push(eye);
+    head.add(blob(sphere, M.furDark, [sx * 0.15, 0.34, 0.3], [0.06, 0.012, 0.02]));      // 눈썹
     const ear = blob(sphere, M.fur, [sx * 0.33, 0.48, -0.02], [0.13, 0.13, 0.08]);
     ear.add(blob(sphere, M.muzzle, [0, 0, 0.5], [0.6, 0.6, 0.5]));
     head.add(ear);
   }
-  const eyes = head.children.filter((c, i) => c.material === M.eye);
 
   let phase = 0, idleT = 0, blinkT = 2, riding = 0, rideTarget = 0;
   function update(dt, speed) {

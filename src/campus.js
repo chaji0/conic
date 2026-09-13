@@ -330,19 +330,21 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
         const x = ax + dx * t, z = az + dz * t, d = Math.hypot(x - target.x, z - target.z);
         if (!best || d < best.d) { const L = Math.sqrt(L2), nx = -dz / L, nz = dx / L; const out = pointInPoly(campus, x + nx * 2, z + nz * 2) ? -1 : 1; best = { d, x, z, nx: nx * out, nz: nz * out }; }
       }
-      const sx = best.x + best.nx * 0.55, sz = best.z + best.nz * 0.55, yb = T(best.x + best.nx * 2, best.z + best.nz * 2);
+      // 옹벽 바깥 1.2m, 바깥 땅 기준 2.4m 높이 — 언덕 비탈이나 옹벽에 가리지 않게
+      const sx = best.x + best.nx * 1.2, sz = best.z + best.nz * 1.2, yb = T(best.x + best.nx * 3, best.z + best.nz * 3);
       const sign = board(7, 2.6, textTexture('', { w: 700, h: 260, bg: '#1e3a6e', fg: '#ffffff', font: 'bold 40px "Malgun Gothic",sans-serif',
         lines: ['단국대학교 사범대학 부속 고등학교', '단국대학교 부속 소프트웨어 고등학교', '단국대학교 사범대학 부속 중학교'] }));
-      sign.position.set(sx, yb + 2.0, sz); sign.rotation.y = Math.atan2(best.nx, best.nz); group.add(sign);
+      sign.position.set(sx, yb + 2.6, sz); sign.rotation.y = Math.atan2(best.nx, best.nz); group.add(sign);
+      for (const d of [-3.2, 3.2]) { const post = box(0.1, 3.9, 0.1, 0x3a3f48); post.position.set(sx + best.nz * d, yb + 1.95, sz - best.nx * d); group.add(post); }
       const sign2 = board(2.4, 1.2, textTexture('단대소고', { w: 240, h: 120, bg: '#ffffff', fg: '#1e3a6e', font: 'bold 52px "Malgun Gothic",sans-serif' }));
-      sign2.position.set(sx + (best.nz) * 5.2, yb + 2.0, sz - (best.nx) * 5.2); sign2.rotation.y = sign.rotation.y; group.add(sign2);
+      sign2.position.set(sx + (best.nz) * 5.6, yb + 2.6, sz - (best.nx) * 5.6); sign2.rotation.y = sign.rotation.y; group.add(sign2);
       // 벽화 타일 (색 삼각형 몇 개)
       const tiles = new Buf();
       for (let k = 0; k < 10; k++) {
         const c = [0xf27d7d, 0xf2c14e, 0x6fc3df, 0x9bd37a, 0xf29cc4][k % 5], ox = (best.nz) * (7 + k * 1.6), oz = -(best.nx) * (7 + k * 1.6);
         tiles.color(c);
-        const x0 = sx + ox, z0 = sz + oz, x1 = x0 + best.nz * 1.2, z1 = z0 - best.nx * 1.2;
-        tiles.v(x0, yb + 0.3 + (k % 2) * 0.6, z0, best.nx, 0, best.nz); tiles.v(x1, yb + 0.3, z1, best.nx, 0, best.nz); tiles.v(x1, yb + 1.5, z1, best.nx, 0, best.nz);
+        const x0 = sx + ox - best.nx * 0.6, z0 = sz + oz - best.nz * 0.6, x1 = x0 + best.nz * 1.2, z1 = z0 - best.nx * 1.2, yt = T(x0 + best.nx * 2, z0 + best.nz * 2);
+        tiles.v(x0, yt + 0.8 + (k % 2) * 0.6, z0, best.nx, 0, best.nz); tiles.v(x1, yt + 0.8, z1, best.nx, 0, best.nz); tiles.v(x1, yt + 2.0, z1, best.nx, 0, best.nz);
       }
       group.add(tiles.mesh(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
     }

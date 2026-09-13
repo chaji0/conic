@@ -392,6 +392,12 @@ export function buildWorld(scene, map, { skipZones = [], skipPoly = null, terrai
     roadGrid.query(x, z, pad, o => { if (o.k !== 'waterway' && segDist(x, z, o.ax, o.az, o.bx, o.bz) < o.w / 2 + pad) { hit = true; return false; } });
     return hit;
   };
+  // 차도(차가 다니는 종류의 도로) 위인가 — 보행로·자전거길은 제외
+  const onDriveRoad = (x, z, pad = 0) => {
+    let hit = false;
+    roadGrid.query(x, z, pad, o => { if (VEHICULAR_RE.test(o.k) && segDist(x, z, o.ax, o.az, o.bx, o.bz) < o.w / 2 + pad) { hit = true; return false; } });
+    return hit;
+  };
 
   // 건물
   const addPolyCollider = (p, h) => colliders.insert({ p, h, ...bboxOf(p) });
@@ -646,6 +652,7 @@ export function buildWorld(scene, map, { skipZones = [], skipPoly = null, terrai
 
     insideBuilding,
     onAnyRoad,
+    onDriveRoad,
 
     // (x,z) 근처에서 건물·도로와 r 이상 떨어진 빈자리
     findOpenSpot(x, z, r, maxR = 60) {
