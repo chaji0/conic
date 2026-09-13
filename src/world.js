@@ -134,22 +134,51 @@ function makeGrid(cell) {
   };
 }
 
+// ---------- 지형 ----------
+// 모든 바닥 도형·건물 밑면·소품은 이 높이 위에 놓인다 (buildWorld 가 terrain 을 받아 설정). 기본은 평지.
+let T = () => 0, inHill = () => false;
+// 폴리라인의 긴 구간을 step 이하로 잘게 나눈다 (언덕 위에서 도로가 지형을 뚫고 나가지 않게)
+function densify(p, step) {
+  const out = [p[0], p[1]];
+  for (let i = 0; i < p.length - 2; i += 2) {
+    const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3], L = Math.hypot(bx - ax, bz - az);
+    const n = (inHill(ax, az) || inHill(bx, bz)) ? Math.max(1, Math.ceil(L / step)) : 1;
+    for (let k = 1; k <= n; k++) out.push(ax + (bx - ax) * k / n, az + (bz - az) * k / n);
+  }
+  return out;
+}
+
 // ---------- 지오메트리 버퍼 ----------
 const _c = new THREE.Color();
-class Buf {
-  constructor(withUV = false) { this.pos = []; this.nor = []; this.col = []; this.uv = withUV ? [] : null; this.r = this.g = this.b = 1; }
+export class Buf {
+  constructor(withUV = false) { this.pos = []; this.nor = []; this.col = []; this.uv = withUV ? [] : null; this.r = this.g = this.b = 1; this.depth = 0; }
   color(hex, k = 1) { _c.setHex(hex); this.r = _c.r * k; this.g = _c.g * k; this.b = _c.b * k; return this; }
   v(x, y, z, nx, ny, nz, u = 0, w = 0) {
     this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.col.push(this.r, this.g, this.b);
     if (this.uv) this.uv.push(u, w);
   }
-  flatTri(y, ax, az, bx, bz, cx, cz) {       // 위(+y)를 보도록 감기 방향 보정
+  flatTri(y, ax, az, bx, bz, cx, cz) {       // 위(+y)를 보도록 감기 방향 보정. 언덕 위에서는 큰 삼각형을 잘게 나눈다
     if ((bz - az) * (cx - ax) - (bx - ax) * (cz - az) < 0) { [bx, cx] = [cx, bx]; [bz, cz] = [cz, bz]; }
-    this.v(ax, y, az, 0, 1, 0); this.v(bx, y, bz, 0, 1, 0); this.v(cx, y, cz, 0, 1, 0);
+    if (inHill(ax, az) || inHill(bx, bz) || inHill(cx, cz)) {
+      const e = Math.max(Math.hypot(bx - ax, bz - az), Math.hypot(cx - bx, cz - bz), Math.hypot(ax - cx, az - cz));
+      if (e > 9 && this.depth < 7) {
+        this.depth = (this.depth || 0) + 1;
+        const mabx = (ax + bx) / 2, mabz = (az + bz) / 2, mbcx = (bx + cx) / 2, mbcz = (bz + cz) / 2, mcax = (cx + ax) / 2, mcaz = (cz + az) / 2;
+        this.flatTri(y, ax, az, mabx, mabz, mcax, mcaz); this.flatTri(y, mabx, mabz, bx, bz, mbcx, mbcz);
+        this.flatTri(y, mcax, mcaz, mbcx, mbcz, cx, cz); this.flatTri(y, mabx, mabz, mbcx, mbcz, mcax, mcaz);
+        this.depth--;
+        return;
+      }
+    }
+    this.v(ax, y + T(ax, az), az, 0, 1, 0); this.v(bx, y + T(bx, bz), bz, 0, 1, 0); this.v(cx, y + T(cx, cz), cz, 0, 1, 0);
   }
-  quad(ax, az, bx, bz, y0, y1, nx, nz) {     // 수직 사각형 (a→b, 법선 n)
+  quad(ax, az, bx, bz, y0, y1, nx, nz) {     // 수직 사각형 (a→b, 법선 n), 절대 높이
     this.v(ax, y0, az, nx, 0, nz); this.v(bx, y0, bz, nx, 0, nz); this.v(bx, y1, bz, nx, 0, nz);
     this.v(ax, y0, az, nx, 0, nz); this.v(bx, y1, bz, nx, 0, nz); this.v(ax, y1, az, nx, 0, nz);
+  }
+  quad4(ax, az, bx, bz, ya0, ya1, yb0, yb1, nx, nz) {   // 양 끝 높이가 다른 수직 사각형
+    this.v(ax, ya0, az, nx, 0, nz); this.v(bx, yb0, bz, nx, 0, nz); this.v(bx, yb1, bz, nx, 0, nz);
+    this.v(ax, ya0, az, nx, 0, nz); this.v(bx, yb1, bz, nx, 0, nz); this.v(ax, ya1, az, nx, 0, nz);
   }
   mesh(material) {
     const g = new THREE.BufferGeometry();
@@ -161,11 +190,12 @@ class Buf {
     return new THREE.Mesh(g, material);
   }
 }
-function fillPoly(buf, p, y) {
+export function fillPoly(buf, p, y) {
   for (const [a, b, c] of triangulate(p)) buf.flatTri(y, p[2 * a], p[2 * a + 1], p[2 * b], p[2 * b + 1], p[2 * c], p[2 * c + 1]);
 }
 function ribbon(buf, p, w, y) {
   const hw = w / 2;
+  p = densify(p, 6);
   for (let i = 0; i < p.length - 2; i += 2) {
     const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3];
     const L = Math.hypot(bx - ax, bz - az);
@@ -186,6 +216,7 @@ function ribbon(buf, p, w, y) {
 function stripe(buf, p, off, width, dash, gap, y) {          // 차선: off 만큼 옆으로, dash/gap 반복
   const period = dash + gap;
   let acc = 0;
+  p = densify(p, 6);
   for (let i = 0; i < p.length - 2; i += 2) {
     const ax = p[i], az = p[i + 1], dx = p[i + 2] - ax, dz = p[i + 3] - az, L = Math.hypot(dx, dz);
     if (L < 0.01) continue;
@@ -280,10 +311,12 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
-export function buildWorld(scene, map, { skipZones = [] } = {}) {
+// skipZones: 랜드마크 모델이 대신 서는 원 · skipPoly: 이 폴리곤 안 건물은 campus.js 가 직접 짓는다 · terrain: 지형
+export function buildWorld(scene, map, { skipZones = [], skipPoly = null, terrain = null } = {}) {
   const B = map.bounds;
   const inB = (x, z, m = 0) => x >= B.minX + m && x <= B.maxX - m && z >= B.minZ + m && z <= B.maxZ - m;
   const rnd = mulberry32(20260913);
+  if (terrain) { T = terrain.y; inHill = terrain.inHill; }
   // 바닥 레이어: 땅만 깊이를 쓰고, 그 위 층은 polygonOffset 으로 항상 땅보다 앞에 판정되게 해 멀리서도 z-fighting 이 없다
   const flatMat = off => new THREE.MeshLambertMaterial({ vertexColors: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off });
   const addFlat = (buf, order, off) => { const m = buf.mesh(flatMat(off)); m.renderOrder = order; m.receiveShadow = true; scene.add(m); return m; };
@@ -299,6 +332,21 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
   ground.receiveShadow = true;
   ground.renderOrder = -10;
   scene.add(ground);
+  if (terrain) {                                   // 언덕 부분만 촘촘한 격자로 덮어 지형을 만든다
+    const hb = terrain.bbox, W = hb.maxX - hb.minX, H = hb.maxZ - hb.minZ;
+    const geo = new THREE.PlaneGeometry(W, H, Math.round(W / 4), Math.round(H / 4));
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i) + (hb.minX + hb.maxX) / 2, z = pos.getZ(i) + (hb.minZ + hb.maxZ) / 2;
+      pos.setXYZ(i, x, T(x, z) + 0.01, z);
+    }
+    geo.computeVertexNormals();
+    const hill = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xdad5c8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    hill.receiveShadow = true;
+    hill.renderOrder = -9.5;
+    scene.add(hill);
+  }
 
   // 구역
   const areas = map.areas.filter(a => AREA_STYLE[a.k]).sort((a, b) => AREA_STYLE[a.k][1] - AREA_STYLE[b.k][1]);
@@ -354,9 +402,12 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
     let p = b.p;
     const bb = bboxOf(p), cx = (bb.minX + bb.maxX) / 2, cz = (bb.minZ + bb.maxZ) / 2;
     if (skipZones.some(s => Math.hypot(cx - s.x, cz - s.z) < s.r)) return;
+    if (skipPoly && pointInPoly(skipPoly, cx, cz)) { addPolyCollider(p, T(cx, cz) + b.h); return; }   // 캠퍼스 건물은 campus.js 가 그림
     if (signedArea(p) > 0) p = reverseRing(p);                     // 벽 법선이 바깥을 보도록
     const { wall, roof } = buildingStyle(b, i);
     const k = 0.9 + hash01(i + 7) * 0.14, h = b.h, n = p.length / 2;
+    // 언덕 위 건물: 바닥은 가운데 높이, 벽은 땅속으로 4m 더 내려 비탈에서 뜨지 않게
+    const base = T(cx, cz), y0 = base - (base > 0.01 ? 4 : 0), y1 = base + h;
     wallBuf.color(wall, k);
     roofBuf.color(roof, k);
     let acc = 0;
@@ -364,13 +415,13 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
       const ax = p[2 * e], az = p[2 * e + 1], bx = p[(2 * e + 2) % (2 * n)], bz = p[(2 * e + 3) % (2 * n)];
       const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz);
       if (L < 0.05) continue;
-      const nx = -dz / L, nz = dx / L, u0 = acc / 3.2, u1 = (acc + L) / 3.2, v1 = h / 3;
+      const nx = -dz / L, nz = dx / L, u0 = acc / 3.2, u1 = (acc + L) / 3.2, v1 = (y1 - y0) / 3;
       acc += L;
-      wallBuf.v(ax, 0, az, nx, 0, nz, u0, 0); wallBuf.v(bx, 0, bz, nx, 0, nz, u1, 0); wallBuf.v(bx, h, bz, nx, 0, nz, u1, v1);
-      wallBuf.v(ax, 0, az, nx, 0, nz, u0, 0); wallBuf.v(bx, h, bz, nx, 0, nz, u1, v1); wallBuf.v(ax, h, az, nx, 0, nz, u0, v1);
+      wallBuf.v(ax, y0, az, nx, 0, nz, u0, 0); wallBuf.v(bx, y0, bz, nx, 0, nz, u1, 0); wallBuf.v(bx, y1, bz, nx, 0, nz, u1, v1);
+      wallBuf.v(ax, y0, az, nx, 0, nz, u0, 0); wallBuf.v(bx, y1, bz, nx, 0, nz, u1, v1); wallBuf.v(ax, y1, az, nx, 0, nz, u0, v1);
     }
-    fillPoly(roofBuf, p, h);
-    addPolyCollider(p, h);
+    for (const [a, b2, c] of triangulate(p)) roofBuf.v(p[2 * a], y1, p[2 * a + 1], 0, 1, 0), roofBuf.v(p[2 * b2], y1, p[2 * b2 + 1], 0, 1, 0), roofBuf.v(p[2 * c], y1, p[2 * c + 1], 0, 1, 0);
+    addPolyCollider(p, y1);
     drawn.push(b);
   });
   const facadeMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex.day, emissive: 0xffffff, emissiveMap: tex.night, emissiveIntensity: 0 });
@@ -394,20 +445,26 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
   function wallRun(x0, z0, x1, z1, H, color, cap) {
     const L = Math.hypot(x1 - x0, z1 - z0);
     if (L < 0.1) return;
+    if (L > 8 && (inHill(x0, z0) || inHill(x1, z1))) {              // 비탈에서는 땅을 따라가도록 잘게
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      wallRun(x0, z0, mx, mz, H, color, cap); wallRun(mx, mz, x1, z1, H, color, cap);
+      return;
+    }
     const nx = -(z1 - z0) / L, nz = (x1 - x0) / L, hw = 0.18, cw = 0.25;
+    const b0 = T(x0, z0), b1 = T(x1, z1), t0 = b0 + H, t1 = b1 + H;
     fenceBuf.color(color);
-    fenceBuf.quad(x0 + nx * hw, z0 + nz * hw, x1 + nx * hw, z1 + nz * hw, 0, H, nx, nz);
-    fenceBuf.quad(x1 - nx * hw, z1 - nz * hw, x0 - nx * hw, z0 - nz * hw, 0, H, -nx, -nz);
+    fenceBuf.quad4(x0 + nx * hw, z0 + nz * hw, x1 + nx * hw, z1 + nz * hw, b0 - 0.3, t0, b1 - 0.3, t1, nx, nz);
+    fenceBuf.quad4(x1 - nx * hw, z1 - nz * hw, x0 - nx * hw, z0 - nz * hw, b1 - 0.3, t1, b0 - 0.3, t0, -nx, -nz);
     fenceBuf.color(cap);
-    fenceBuf.v(x0 + nx * cw, H, z0 + nz * cw, 0, 1, 0); fenceBuf.v(x1 + nx * cw, H, z1 + nz * cw, 0, 1, 0); fenceBuf.v(x1 - nx * cw, H, z1 - nz * cw, 0, 1, 0);
-    fenceBuf.v(x0 + nx * cw, H, z0 + nz * cw, 0, 1, 0); fenceBuf.v(x1 - nx * cw, H, z1 - nz * cw, 0, 1, 0); fenceBuf.v(x0 - nx * cw, H, z0 - nz * cw, 0, 1, 0);
+    fenceBuf.v(x0 + nx * cw, t0, z0 + nz * cw, 0, 1, 0); fenceBuf.v(x1 + nx * cw, t1, z1 + nz * cw, 0, 1, 0); fenceBuf.v(x1 - nx * cw, t1, z1 - nz * cw, 0, 1, 0);
+    fenceBuf.v(x0 + nx * cw, t0, z0 + nz * cw, 0, 1, 0); fenceBuf.v(x1 - nx * cw, t1, z1 - nz * cw, 0, 1, 0); fenceBuf.v(x0 - nx * cw, t0, z0 - nz * cw, 0, 1, 0);
     const cp = [x0 + nx * hw, z0 + nz * hw, x1 + nx * hw, z1 + nz * hw, x1 - nx * hw, z1 - nz * hw, x0 - nx * hw, z0 - nz * hw];
-    colliders.insert({ p: cp, h: H, ...bboxOf(cp) });
+    colliders.insert({ p: cp, h: Math.max(t0, t1), ...bboxOf(cp) });
     wallLen += L;
   }
   for (const a of map.areas) {
     const st = WALLED_AREAS[a.k];
-    if (!st) continue;
+    if (!st || (skipPoly && a.p === skipPoly)) continue;          // 단대부고 캠퍼스 담장은 campus.js 가 옹벽으로 짓는다
     const p = insetRing(a.p, 5), n = p.length / 2;
     for (let e = 0; e < n; e++) {
       const ax = p[2 * e], az = p[2 * e + 1], bx = p[(2 * e + 2) % (2 * n)], bz = p[(2 * e + 3) % (2 * n)];
@@ -467,11 +524,11 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
   for (let i = 0; i < treeCount; i++) {
     const x = trees[3 * i], z = trees[3 * i + 1], s = trees[3 * i + 2];
     q.setFromAxisAngle(up, rnd() * Math.PI * 2);
-    m4.compose(v3.set(x, 0, z), q, sc.set(s, s * (0.85 + rnd() * 0.35), s));
+    m4.compose(v3.set(x, T(x, z), z), q, sc.set(s, s * (0.85 + rnd() * 0.35), s));
     trunks.setMatrixAt(i, m4);
     crowns.setMatrixAt(i, m4);
     crowns.setColorAt(i, _c.setHex(pick(GREENS, rnd())));
-    colliders.insert({ circle: true, x, z, r: 0.3 * s, h: 3, minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 });
+    colliders.insert({ circle: true, x, z, r: 0.3 * s, h: T(x, z) + 3, minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 });
   }
   for (const m of [trunks, crowns]) { m.castShadow = true; m.computeBoundingSphere(); scene.add(m); }
 
@@ -498,11 +555,12 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
   const glowPos = [];
   for (let i = 0; i < lampCount; i++) {
     const x = lampSpots[3 * i], z = lampSpots[3 * i + 1], face = lampSpots[3 * i + 2];
+    const y = T(x, z);
     q.setFromAxisAngle(up, face);
-    m4.compose(v3.set(x, 0, z), q, sc.set(1, 1, 1));
+    m4.compose(v3.set(x, y, z), q, sc.set(1, 1, 1));
     poles.setMatrixAt(i, m4); arms.setMatrixAt(i, m4); heads.setMatrixAt(i, m4); pools.setMatrixAt(i, m4);
-    glowPos.push(x + 1.45 * Math.cos(face), 4.5, z - 1.45 * Math.sin(face));
-    colliders.insert({ circle: true, x, z, r: 0.2, h: 4.6, minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 });
+    glowPos.push(x + 1.45 * Math.cos(face), y + 4.5, z - 1.45 * Math.sin(face));
+    colliders.insert({ circle: true, x, z, r: 0.2, h: y + 4.6, minX: x - 1, maxX: x + 1, minZ: z - 1, maxZ: z + 1 });
   }
   const glowGeo = new THREE.BufferGeometry();
   glowGeo.setAttribute('position', new THREE.Float32BufferAttribute(glowPos, 3));
@@ -552,6 +610,10 @@ export function buildWorld(scene, map, { skipZones = [] } = {}) {
       poolMat.opacity = night * 0.3;
       glow.visible = pools.visible = night > 0.02;     // 낮에는 아예 그리지 않음 (반투명 원반 수백 개는 채우기 부담)
     },
+
+    y: (x, z) => T(x, z),
+    colliders,
+    addCollider(o) { colliders.insert(o); },
 
     // pos(x,y,z)를 반지름 R 원으로 보고 건물·담장·나무 밖으로 밀어낸다 (y 가 지붕보다 높으면 통과)
     collide(pos, R) {

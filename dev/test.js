@@ -24,7 +24,7 @@ const path = require('path');
   await page.waitForTimeout(500);
   const p0 = await page.evaluate(() => [__berry.player.pos.x, __berry.player.pos.z]);
 
-  await page.keyboard.down('ArrowUp'); await page.waitForTimeout(800); await page.keyboard.up('ArrowUp');
+  await page.keyboard.down('ArrowUp'); await page.waitForTimeout(1500); await page.keyboard.up('ArrowUp');   // 소프트웨어 렌더링이라 느림
   await page.keyboard.down('ArrowLeft'); await page.waitForTimeout(300); await page.keyboard.up('ArrowLeft');
   await page.keyboard.down('ShiftLeft'); await page.keyboard.down('ArrowUp'); await page.waitForTimeout(600);
   await page.keyboard.up('ArrowUp'); await page.keyboard.up('ShiftLeft');

@@ -80,7 +80,7 @@ function pickNext(node, from, fx, fz) {
   return best;
 }
 
-export function createCars(scene, driveRoads, count = 14) {
+export function createCars(scene, driveRoads, count = 14, terrainY = () => 0) {
   const graph = buildGraph(driveRoads);
   const n = graph.length ? count : 0;
   const g = carGeometries();
@@ -125,7 +125,8 @@ export function createCars(scene, driveRoads, count = 14) {
       c.yaw = c.init ? c.yaw + (((yaw - c.yaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) * k : yaw;
       c.init = true;
       _q.setFromAxisAngle(up, c.yaw);
-      _m.compose(_p.set(x + c.offX, 0, z + c.offZ), _q, _s.set(1, 1, 1));
+      const cx = x + c.offX, cz = z + c.offZ;
+      _m.compose(_p.set(cx, terrainY(cx, cz), cz), _q, _s.set(1, 1, 1));
       body.setMatrixAt(i, _m); parts.setMatrixAt(i, _m); beams.setMatrixAt(i, _m);
     }
     body.instanceMatrix.needsUpdate = parts.instanceMatrix.needsUpdate = beams.instanceMatrix.needsUpdate = true;
@@ -161,7 +162,7 @@ function bikeGeometries() {
 const BIKE_COLORS = [0x2f6fd3, 0xd3372f, 0x3fae5e, 0xf2c14e, 0x9b59b6, 0x2ec4b6, 0xff8c4d, 0x5a6b8a];
 
 // spots: [{x, z, yaw, count}] — 각 거치대에 count 대를 옆으로 2.2m 간격으로 세운다
-export function createBikes(scene, spots) {
+export function createBikes(scene, spots, terrainY = () => 0) {
   const list = [];
   for (const s of spots) for (let i = 0; i < s.count; i++) {
     const side = (i - (s.count - 1) / 2) * 1.0;          // 거치대 안에서 옆으로 1m 간격 (앞바퀴 방향 = yaw)
@@ -175,7 +176,7 @@ export function createBikes(scene, spots) {
   const up = new THREE.Vector3(0, 1, 0);
   list.forEach((b, i) => {
     _q.setFromAxisAngle(up, b.yaw);
-    _m.compose(_p.set(b.x, 0, b.z), _q, _s.set(1, 1, 1));
+    _m.compose(_p.set(b.x, terrainY(b.x, b.z), b.z), _q, _s.set(1, 1, 1));
     frame.setMatrixAt(i, _m); parts.setMatrixAt(i, _m);
     frame.setColorAt(i, _c.setHex(BIKE_COLORS[i % BIKE_COLORS.length]));
   });

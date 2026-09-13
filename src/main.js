@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createBerry } from './cat.js';
-import { buildWorld, project } from './world.js';
+import { buildWorld, project, pointInPoly } from './world.js';
+import { createTerrain } from './terrain.js';
+import { buildCampus } from './campus.js';
 import { createCars, createBikes } from './vehicles.js';
 import { createSky, phaseOf } from './sky.js';
 import { createMultiplayer, ROOM } from './multiplayer.js';
@@ -89,9 +91,17 @@ async function main() {
     }
   }
 
+  // 단대부고 캠퍼스(원점을 품은 이름 없는 학교 구역)는 언덕 위에 있고, 서쪽 정문에서 골목이 올라온다
+  const campusPoly = map.areas.find(a => a.k === 'school' && !a.n && pointInPoly(a.p, 0, 0))?.p ?? [-60, -60, 60, -60, 60, 60, -60, 60];
+  const GATE = { x: -85, z: 3.5 }, DIR_IN = { x: 0.93, z: -0.36 };
+  const terrain = createTerrain(campusPoly, GATE, DIR_IN);
+
   setLoad(`건물 ${map.buildings.length.toLocaleString()}채 세우는 중…`);
   await nextFrame();
-  const world = buildWorld(scene, map, { skipZones });
+  const world = buildWorld(scene, map, { skipZones, skipPoly: campusPoly, terrain });
+  setLoad('단대부고 캠퍼스를 짓는 중…');
+  await nextFrame();
+  const campus = buildCampus(scene, world, map, terrain, { campus: campusPoly, gate: GATE, dirIn: DIR_IN });
 
   const loader = new GLTFLoader();
   for (const lm of landmarks.filter(l => l.hasModel)) {
@@ -114,7 +124,7 @@ async function main() {
   // ---------- 자동차 · 자전거 ----------
   setLoad('자동차와 자전거를 놓는 중…');
   await nextFrame();
-  const cars = createCars(scene, world.driveRoads, 14);
+  const cars = createCars(scene, world.driveRoads, 14, terrain.y);
   const bikeSpots = [];
   const exits = map.pois.filter(p => p.k === 'exit');
   for (const e of exits) {
@@ -124,8 +134,11 @@ async function main() {
     bikeSpots.push({ x: s.x, z: s.z, yaw: (bikeSpots.length % 2) * Math.PI / 2, count: 4 + (bikeSpots.length % 3) });
   }
   const dandae = landmarks.find(l => l.id === 'dandae');
-  if (dandae) { const s = world.findOpenSpot(dandae.x - 100, dandae.z + 12, 4, 40); bikeSpots.push({ x: s.x, z: s.z, yaw: Math.PI / 2, count: 6 }); }
-  const bikes = createBikes(scene, bikeSpots);
+  if (dandae) {   // 정문 안쪽 옆 빈터 (도로 밖)
+    const s = world.findOpenSpot(GATE.x + DIR_IN.x * 24 - DIR_IN.z * 12, GATE.z + DIR_IN.z * 24 + DIR_IN.x * 12, 4, 40);
+    bikeSpots.push({ x: s.x, z: s.z, yaw: Math.atan2(DIR_IN.x, DIR_IN.z), count: 6 });
+  }
+  const bikes = createBikes(scene, bikeSpots, terrain.y);
 
   // ---------- 베리 ----------
   setLoad('베리 깨우는 중…');
@@ -187,7 +200,7 @@ async function main() {
   }
   for (const lm of landmarks) {
     const group = new THREE.Group();
-    group.position.set(lm.x, 0, lm.z);
+    group.position.set(lm.x, terrain.y(lm.x, lm.z), lm.z);
     const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.2, depthWrite: false }));
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
     ring.position.y = 0.2;
@@ -204,8 +217,9 @@ async function main() {
   }
 
   // ---------- 플레이어 · 입력 (단붕이 방식: 회전 + 전진/후진, 톡/끌기/꾹 누르기, 핀치) ----------
-  const spawn = world.findOpenSpot(-60, 8, 1.2, 80);      // 단대부고 서쪽 정문 골목
-  const player = { pos: new THREE.Vector3(spawn.x, 0, spawn.z), yaw: Math.PI / 2, speed: 0, walkT: 0, running: false };
+  const spawn = { x: GATE.x - DIR_IN.x * 14, z: GATE.z - DIR_IN.z * 14 };      // 단대부고 정문 앞 오르막길, 정문을 바라보고
+  const spawnYaw = Math.atan2(DIR_IN.x, DIR_IN.z);
+  const player = { pos: new THREE.Vector3(spawn.x, terrain.y(spawn.x, spawn.z), spawn.z), yaw: spawnYaw, speed: 0, walkT: 0, running: false };
   const orbit = { azimuth: player.yaw + Math.PI, pitch: 0.42, radius: 12, dragging: false, moved: false, lastX: 0, lastY: 0 };
   const input = { fwd: false, back: false, left: false, right: false, run: false };
   const keyHeld = { fwd: false, back: false, left: false, right: false, run: false };
@@ -368,8 +382,8 @@ async function main() {
   }
 
   function respawn() {
-    player.pos.set(spawn.x, 0, spawn.z);
-    player.yaw = Math.PI / 2;
+    player.pos.set(spawn.x, terrain.y(spawn.x, spawn.z), spawn.z);
+    player.yaw = spawnYaw;
     orbit.azimuth = player.yaw + Math.PI;
     toast('🏫 단대부고 앞으로 돌아왔어요');
   }
@@ -383,11 +397,12 @@ async function main() {
     player.running = !!input.run && move !== 0;
     if (move !== 0) {
       const spd = PLAYER_SPEED * (player.running ? RUN_MULT : 1);
-      _step.set(player.pos.x + Math.sin(player.yaw) * move * spd * dt, 0, player.pos.z + Math.cos(player.yaw) * move * spd * dt);
+      _step.set(player.pos.x + Math.sin(player.yaw) * move * spd * dt, player.pos.y, player.pos.z + Math.cos(player.yaw) * move * spd * dt);
       world.collide(_step, 0.45);
       player.speed = Math.hypot(_step.x - player.pos.x, _step.z - player.pos.z) / Math.max(dt, 1e-4);
       player.pos.x = _step.x; player.pos.z = _step.z;
     } else player.speed = 0;
+    player.pos.y = terrain.y(player.pos.x, player.pos.z);   // 언덕을 따라 오르내린다
   }
 
   // ---------- 카메라 (궤도; 걷는 동안 등 뒤로 따라옴, 건물에 가리면 당겨짐) ----------
@@ -564,6 +579,7 @@ async function main() {
       const o = peer.cat.object, k = Math.min(1, dt * 8);
       const dx = (peer.x - o.position.x) * k, dz = (peer.z - o.position.z) * k;
       o.position.x += dx; o.position.z += dz;
+      o.position.y = terrain.y(o.position.x, o.position.z);
       o.rotation.y = peer.ry;
       peer.cat.update(dt, Math.hypot(dx, dz) / Math.max(dt, 1e-4) * 0.4, true);
     }
@@ -592,6 +608,7 @@ async function main() {
     const night = Math.pow(1 - f, 1.2);
     world.setNight(night);
     cars.setNight(night);
+    campus.setNight(night);
     updatePlayer(dt);
     berry.object.position.copy(player.pos);
     berry.object.rotation.y = player.yaw;
@@ -611,7 +628,7 @@ async function main() {
     renderer.render(scene, camera);
   });
 
-  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown };   // 디버그·테스트용
+  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus };   // 디버그·테스트용
   setLoad(`건물 ${world.buildingCount.toLocaleString()}채 · 나무 ${world.treeCount.toLocaleString()}그루 · 가로등 ${world.lampCount.toLocaleString()}개 · 담장 ${(world.wallLen / 1000).toFixed(1)}km · 자동차 ${cars.count}대 · 자전거 ${bikes.count}대 · 방 "${ROOM}"`);
   $('#start').hidden = false;
 }
