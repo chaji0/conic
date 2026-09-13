@@ -55,6 +55,7 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
   const pitchC = pitch ? cen(pitch.p) : { x: gate.x + 40, z: gate.z - 50 };
   const glassMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xffd27a, emissiveIntensity: 0 });
   const nightMats = [glassMat];
+  const TEL = { x: gate.x + dirIn.x * 40, z: gate.z + dirIn.z * 40 };   // 옥상 천문대로 올라가는 자리 (본관 현관 앞에서 갱신)
 
   // ---------- 건물 (벽돌 + 층마다 흰 띠 + 창문 + 옥상 계단탑) ----------
   for (const b of buildings) {
@@ -113,6 +114,17 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
     const cc = cen(p);
     tower.position.set(cc.x + (p[0] - cc.x) * 0.45, top + 1.5, cc.z + (p[1] - cc.z) * 0.45);
     group.add(tower);
+    if (st.main) {                                             // 옥상 천문대: 반사망원경 (경통 + 삼각대) + 난간
+      const tg = new THREE.Group(); tg.position.set(cc.x, top, cc.z);
+      const pier = box(0.8, 1.6, 0.8, 0x39404e); pier.position.y = 0.8; tg.add(pier);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 3.6, 24), new THREE.MeshLambertMaterial({ color: 0x6e7c93 }));
+      tube.rotation.x = Math.PI / 2 - 0.6; tube.position.set(0, 2.4, 0.4); tube.castShadow = true; tg.add(tube);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(3.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xe9e4d8, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+      dome.position.y = 0.2; tg.add(dome);
+      const lbl = board(4.2, 1.0, textTexture('🔭 옥상 천문대', { bg: '#1e3a6e', fg: '#ffffff', font: 'bold 44px "Malgun Gothic",sans-serif', w: 420, h: 100 }), { double: true });
+      lbl.position.y = 5.2; tg.add(lbl);
+      group.add(tg);
+    }
     if (st.gym) {                                                // 체육관 이름
       const s = board(10, 2.2, textTexture('체 육 관', { bg: '#f1f1ee', fg: '#3a4a5c', font: 'bold 70px "Malgun Gothic",sans-serif' }), { double: true });
       s.position.set(cc.x, top + 2.4, cc.z); s.rotation.y = Math.PI / 2; group.add(s);
@@ -138,8 +150,12 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
         const door = box(4.5, 3.2, 0.2, 0x3a4c60); door.position.set(0, 1.6, 0.2); porch.add(door);
         for (let s = 0; s < 4; s++) { const step = box(16, 0.22, 1.1, 0xd8d3c8); step.position.set(0, 0.11 + s * 0.22, 5 + (3 - s) * 1.1); porch.add(step); }
         const sign = board(14, 1.4, textTexture('단국대학교사범대학부속고등학교', { bg: '#a8433a', fg: '#ffffff', font: 'bold 44px "Malgun Gothic",sans-serif' }));
-        sign.position.set(0, base + 0 + b.h - 2.2 - base, 0.12); sign.position.y = b.h - 2.2; porch.add(sign);
+        sign.position.set(0, b.h - 2.2, 0.12); porch.add(sign);
         group.add(porch);
+        TEL.x = mx + nx * 9; TEL.z = mz + nz * 9;               // 현관 앞 = 옥상 천문대로 올라가는 자리
+        const telSign = board(2.6, 0.7, textTexture('🔭 옥상 천문대 ↑', { bg: '#1e3a6e', fg: '#ffffff', font: 'bold 40px "Malgun Gothic",sans-serif', w: 360, h: 96 }), { double: true });
+        telSign.position.set(mx + nx * 6.5 + ux * 5, base + 2.4, mz + nz * 6.5 + uz * 5); telSign.rotation.y = yaw; group.add(telSign);
+        const tp = box(0.1, 2.4, 0.1, 0x3a3f48); tp.position.set(mx + nx * 6.5 + ux * 5, base + 1.2, mz + nz * 6.5 + uz * 5); group.add(tp);
         // 앞마당 (밝은 포장) + 게양대
         flatBuf.color(0xe6e1d6);
         const fw = 30, fd = 22, ox = mx + nx * (fd / 2 + 5), oz = mz + nz * (fd / 2 + 5);
@@ -257,20 +273,40 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
   wallMesh.receiveShadow = true;
   group.add(wallMesh);
 
-  // ---------- 정문: 돌기둥 + 철문(열림) + 교표·명판 ----------
+  // ---------- 정문: 벽돌 기둥 + 철제 미닫이문(열림) + 교표 + 관리실 ----------
   {
     const gy = T(gate.x, gate.z), yaw = Math.atan2(dirIn.x, dirIn.z);
     for (const s of [-1, 1]) {
-      const x = gate.x + px * s * 4.2, z = gate.z + pz * s * 4.2;
-      const pillar = box(1.3, 4.2, 1.3, 0xc9c3b7); pillar.position.set(x, gy + 2.1, z); pillar.rotation.y = yaw; group.add(pillar);
-      const cap = box(1.6, 0.35, 1.6, 0x8e8a80); cap.position.set(x, gy + 4.35, z); cap.rotation.y = yaw; group.add(cap);
-      const leaf = box(0.08, 2.6, 3.6, 0x2a2f38, { transparent: true, opacity: 0.85 });   // 열려 있는 문짝 (안쪽으로 접힘)
-      leaf.position.set(x + dirIn.x * 2 - px * s * 0.6, gy + 1.4, z + dirIn.z * 2 - pz * s * 0.6); leaf.rotation.y = yaw; group.add(leaf);
+      const x = gate.x + px * s * 4.6, z = gate.z + pz * s * 4.6;
+      const pillar = box(1.6, 3.4, 1.6, 0x9d4a3a); pillar.position.set(x, gy + 1.7, z); pillar.rotation.y = yaw; group.add(pillar);
+      const cap = box(1.9, 0.25, 1.9, 0xe9e4d8); cap.position.set(x, gy + 3.5, z); cap.rotation.y = yaw; group.add(cap);
+      // 열려 있는 철제 미닫이문 (기둥 안쪽으로 접혀 담장을 따라 놓임)
+      for (let k = 0; k < 6; k++) {
+        const bar = box(0.06, 2.2, 0.06, 0x6b7280); const off = 1.2 + k * 0.55;
+        bar.position.set(x + px * s * off, gy + 1.1, z + pz * s * off); group.add(bar);
+      }
+      const rail = box(0.08, 0.08, 3.6, 0x6b7280); rail.position.set(x + px * s * 2.6, gy + 2.15, z + pz * s * 2.6); rail.rotation.y = yaw + Math.PI / 2; group.add(rail);
     }
-    const plate = board(1.1, 0.5, textTexture('단대부고', { bg: '#2a2f38', fg: '#f5f0e6', font: 'bold 60px "Malgun Gothic",sans-serif', w: 256, h: 120 }));
-    plate.position.set(gate.x + px * 4.2 - dirIn.x * 0.68, gy + 2.4, gate.z + pz * 4.2 - dirIn.z * 0.68); plate.rotation.y = yaw + Math.PI; group.add(plate);
     const emblem = board(0.9, 0.9, textTexture('高', { bg: '#f4e04d', fg: '#1a1a1a', font: 'bold 80px "Malgun Gothic",sans-serif', w: 128, h: 128 }));
-    emblem.position.set(gate.x - px * 4.2 - dirIn.x * 0.68, gy + 2.6, gate.z - pz * 4.2 - dirIn.z * 0.68); emblem.rotation.y = yaw + Math.PI; group.add(emblem);
+    emblem.position.set(gate.x - px * 4.6 - dirIn.x * 0.82, gy + 2.3, gate.z - pz * 4.6 - dirIn.z * 0.82); emblem.rotation.y = yaw + Math.PI; group.add(emblem);
+    // 관리실: 정문 오른쪽(들어가며 오른쪽) 벽돌 부스, 위쪽 큰 창, 초록 띠 간판
+    {
+      const gx = gate.x + px * 8.2 + dirIn.x * 2.2, gz = gate.z + pz * 8.2 + dirIn.z * 2.2, y0 = T(gx, gz);
+      const booth = new THREE.Group(); booth.position.set(gx, y0, gz); booth.rotation.y = yaw;
+      const base = box(4.4, 1.3, 3.4, 0x9d4a3a); base.position.y = 0.65; booth.add(base);
+      const glass = box(4.2, 1.5, 3.2, 0x8fb4d9, { transparent: true, opacity: 0.75 }); glass.position.y = 2.05; booth.add(glass);
+      for (const [x, z] of [[-2.1, -1.6], [2.1, -1.6], [-2.1, 1.6], [2.1, 1.6]]) { const post = box(0.16, 1.5, 0.16, 0x2a2f38); post.position.set(x, 2.05, z); booth.add(post); }
+      const band = box(4.9, 0.75, 3.9, 0x2f6e4f); band.position.y = 3.15; booth.add(band);
+      const roof = box(5.1, 0.18, 4.1, 0xd8d3c8); roof.position.y = 3.6; booth.add(roof);
+      const ac = box(0.9, 0.5, 0.6, 0xcfd3d8); ac.position.set(1.4, 3.95, 0.6); booth.add(ac);
+      const signTex = textTexture('단국대학교사범대학부속중고등학교', { bg: '#2f6e4f', fg: '#ffffff', font: 'bold 34px "Malgun Gothic",sans-serif', w: 700, h: 90 });
+      const s1 = board(4.8, 0.62, signTex); s1.position.set(0, 3.15, -1.96); s1.rotation.y = Math.PI; booth.add(s1);      // 정문 쪽(바깥에서 보이는 면)
+      const s2 = board(3.8, 0.62, signTex); s2.position.set(-2.46, 3.15, 0); s2.rotation.y = -Math.PI / 2; booth.add(s2);  // 진입로 쪽
+      const door = box(0.9, 2.0, 0.08, 0x3a4c60); door.position.set(1.2, 1.0, 1.72); booth.add(door);
+      group.add(booth);
+      world.addCollider({ p: [gx - 2.6, gz - 2.2, gx + 2.6, gz - 2.2, gx + 2.6, gz + 2.2, gx - 2.6, gz + 2.2], h: y0 + 3.7, minX: gx - 3, maxX: gx + 3, minZ: gz - 3, maxZ: gz + 3 });
+      const bin = box(0.7, 0.9, 0.6, 0x2f6fd3); bin.position.set(gx + px * 3.2, y0 + 0.45, gz + pz * 3.2); bin.rotation.y = yaw; group.add(bin);   // 파란 분리수거함
+    }
     // 정문 앞 횡단보도 (노란 지그재그 + 흰 줄)
     lineBuf.color(0xf3d15a);
     for (let s = -3.2; s <= 3.2; s += 1.6) {
@@ -278,12 +314,33 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
       const a = [cx - dirIn.x * 1.2 - px * 0.25, cz - dirIn.z * 1.2 - pz * 0.25, cx + dirIn.x * 1.2 - px * 0.25, cz + dirIn.z * 1.2 - pz * 0.25, cx + dirIn.x * 1.2 + px * 0.25, cz + dirIn.z * 1.2 + pz * 0.25, cx - dirIn.x * 1.2 + px * 0.25, cz - dirIn.z * 1.2 + pz * 0.25];
       fillPoly(lineBuf, a, 0.06);
     }
-    // 안내판 (옹벽 위, 정문 옆)
-    const sx = gate.x + px * 9 - dirIn.x * 2, sz = gate.z + pz * 9 - dirIn.z * 2;
-    const sign = board(7, 2.6, textTexture('', { w: 700, h: 260, bg: '#1e3a6e', fg: '#ffffff', font: 'bold 40px "Malgun Gothic",sans-serif',
-      lines: ['단국대학교 사범대학 부속 고등학교', '단국대학교 부속 소프트웨어 고등학교', '단국대학교 사범대학 부속 중학교'] }), { double: true });
-    sign.position.set(sx, T(sx, sz) + 2.2, sz); sign.rotation.y = yaw + Math.PI; group.add(sign);
-    for (const s of [-3.2, 3.2]) { const post = box(0.12, 3.6, 0.12, 0x3a3f48); post.position.set(sx + px * s, T(sx, sz) + 1.8, sz + pz * s); group.add(post); }
+    // 파란 안내판: 정문이 아니라 언덕 아래 작은 사거리(은행 옆, 옹벽 아래)의 캠퍼스 옹벽에 붙어 있다
+    {
+      const target = { x: gate.x - 47, z: gate.z - 92 };
+      let best = null;
+      for (let e = 0; e < cn; e++) {
+        const ax = campus[2 * e], az = campus[2 * e + 1], bx = campus[(2 * e + 2) % (2 * cn)], bz = campus[(2 * e + 3) % (2 * cn)];
+        const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+        let t = ((target.x - ax) * dx + (target.z - az) * dz) / L2; t = Math.max(0.1, Math.min(0.9, t));
+        const x = ax + dx * t, z = az + dz * t, d = Math.hypot(x - target.x, z - target.z);
+        if (!best || d < best.d) { const L = Math.sqrt(L2), nx = -dz / L, nz = dx / L; const out = pointInPoly(campus, x + nx * 2, z + nz * 2) ? -1 : 1; best = { d, x, z, nx: nx * out, nz: nz * out }; }
+      }
+      const sx = best.x + best.nx * 0.55, sz = best.z + best.nz * 0.55, yb = T(best.x + best.nx * 2, best.z + best.nz * 2);
+      const sign = board(7, 2.6, textTexture('', { w: 700, h: 260, bg: '#1e3a6e', fg: '#ffffff', font: 'bold 40px "Malgun Gothic",sans-serif',
+        lines: ['단국대학교 사범대학 부속 고등학교', '단국대학교 부속 소프트웨어 고등학교', '단국대학교 사범대학 부속 중학교'] }));
+      sign.position.set(sx, yb + 2.0, sz); sign.rotation.y = Math.atan2(best.nx, best.nz); group.add(sign);
+      const sign2 = board(2.4, 1.2, textTexture('단대소고', { w: 240, h: 120, bg: '#ffffff', fg: '#1e3a6e', font: 'bold 52px "Malgun Gothic",sans-serif' }));
+      sign2.position.set(sx + (best.nz) * 5.2, yb + 2.0, sz - (best.nx) * 5.2); sign2.rotation.y = sign.rotation.y; group.add(sign2);
+      // 벽화 타일 (색 삼각형 몇 개)
+      const tiles = new Buf();
+      for (let k = 0; k < 10; k++) {
+        const c = [0xf27d7d, 0xf2c14e, 0x6fc3df, 0x9bd37a, 0xf29cc4][k % 5], ox = (best.nz) * (7 + k * 1.6), oz = -(best.nx) * (7 + k * 1.6);
+        tiles.color(c);
+        const x0 = sx + ox, z0 = sz + oz, x1 = x0 + best.nz * 1.2, z1 = z0 - best.nx * 1.2;
+        tiles.v(x0, yb + 0.3 + (k % 2) * 0.6, z0, best.nx, 0, best.nz); tiles.v(x1, yb + 0.3, z1, best.nx, 0, best.nz); tiles.v(x1, yb + 1.5, z1, best.nx, 0, best.nz);
+      }
+      group.add(tiles.mesh(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+    }
   }
 
   // ---------- 진입로(도곡로64길): 볼라드, 벚나무, 노란 중앙선 안내, KB국민은행 ----------
@@ -374,6 +431,7 @@ export function buildCampus(scene, world, map, terrain, { campus, gate, dirIn })
 
   return {
     group,
+    telescopeSpot: TEL,        // 이 근처(현관 앞)에서 E → 옥상 천문대
     setNight(night) { for (const m of nightMats) m.emissiveIntensity = night * (m === glassMat ? 0.9 : 1.2); },
   };
 }

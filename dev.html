@@ -107,6 +107,52 @@
   #joystick-knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border-radius: 50%;
     background: rgba(194,24,91,.75); border: 2px solid #fff; transform: translate(-50%,-50%); }
 
+  /* 옥상 천문대 (반사망원경) */
+  #tel { position: fixed; inset: 0; z-index: 40; background: #0C0E14; color: #fff; font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; }
+  #cvTel { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #telTop { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; z-index: 5; }
+  #telTop .ttl { font-weight: 800; font-size: 15px; padding: 6px 12px; border-radius: 999px; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); }
+  #telTop .sp { flex: 1; }
+  .telBtn { height: 31px; padding: 0 15px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.08); color: #fff; font-size: 12.5px; font-weight: 700; }
+  .telBtn.on { background: #FFC24A; border-color: #FFC24A; color: #2B2410; }
+  #telStat { font-size: 12px; color: #FFC24A; padding: 0 6px; }
+  #telSteps { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 5; max-width: calc(100% - 24px); }
+  #telSteps button { display: flex; align-items: center; gap: 6px; height: 31px; padding: 0 11px 0 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(16,18,24,.78); color: rgba(255,255,255,.85); font-size: 12.5px; font-weight: 700; }
+  #telSteps button i { font-style: normal; font-size: 11px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.14); }
+  #telSteps button.on { background: #FFC24A; border-color: #FFC24A; color: #2B2410; }
+  #telSteps button.on i { background: rgba(0,0,0,.22); color: #2B2410; }
+  #telSteps button.nx { padding: 0 15px; background: rgba(255,255,255,.9); color: #1B1C22; border-color: transparent; }
+  #tel.playing #telSteps { display: none; }
+  #telEye { position: absolute; left: 16px; top: 60px; width: 170px; z-index: 4; pointer-events: none; }
+  #telEye canvas { width: 170px; height: 170px; display: block; border-radius: 50%; }
+  #telSec { position: absolute; right: 12px; bottom: 12px; width: min(300px, 40vw); height: 150px; z-index: 4; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); border-radius: 12px; }
+  #cvSec { width: 100%; height: 100%; display: block; }
+  #telCtl { position: absolute; left: 12px; bottom: 12px; width: 252px; display: none; z-index: 6; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); border-radius: 14px; padding: 10px 12px; backdrop-filter: blur(4px); }
+  #tel.playing #telCtl { display: block; }
+  .tcTop { display: flex; gap: 14px; justify-content: space-between; padding: 2px 2px 8px; }
+  .tcDev { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .devLab { font-size: 10.5px; color: rgba(255,255,255,.6); font-weight: 700; }
+  .devVal { font-family: ui-monospace, monospace; font-size: 10.5px; color: #FFC24A; font-weight: 600; }
+  .joy { width: 66px; height: 66px; border-radius: 50%; position: relative; cursor: grab; touch-action: none; background: radial-gradient(circle at 35% 30%, #3A4256, #1A1F2B 70%); border: 1.5px solid rgba(255,255,255,.22); box-shadow: inset 0 3px 9px rgba(0,0,0,.6); }
+  .joyStick { width: 26px; height: 26px; border-radius: 50%; position: absolute; left: 20px; top: 20px; background: radial-gradient(circle at 35% 30%, #8FA2C4, #47536B 75%); border: 1px solid rgba(255,255,255,.4); box-shadow: 0 3px 6px rgba(0,0,0,.55); }
+  .leverSlot { width: 30px; height: 76px; border-radius: 9px; position: relative; cursor: grab; touch-action: none; background: linear-gradient(180deg,#151A24,#232B3B); border: 1.5px solid rgba(255,255,255,.22); box-shadow: inset 0 2px 8px rgba(0,0,0,.65); }
+  .leverTicks { position: absolute; left: 50%; top: 7px; bottom: 7px; width: 2px; margin-left: -1px; background: repeating-linear-gradient(180deg, rgba(255,255,255,.35) 0 1.5px, transparent 1.5px 7px); }
+  .leverHandle { width: 40px; height: 15px; border-radius: 6px; position: absolute; left: -5px; top: 30px; background: linear-gradient(180deg,#E8D9A8,#A98F4C); border: 1px solid rgba(0,0,0,.45); box-shadow: 0 3px 5px rgba(0,0,0,.55); }
+  .dial { width: 62px; height: 62px; border-radius: 50%; position: relative; cursor: grab; touch-action: none; border: 1.5px solid rgba(255,255,255,.25); box-shadow: 0 3px 8px rgba(0,0,0,.5); overflow: hidden; }
+  .dialFace { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(#39415A 0deg 12deg, #232A3C 12deg 24deg); }
+  .dialFace::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #55617E, #2A3143 75%); border: 1px solid rgba(255,255,255,.25); }
+  .dialDot { position: absolute; left: 50%; top: 5px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #FFC24A; box-shadow: 0 0 5px #FFC24A; pointer-events: none; }
+  .tcBtns { display: flex; gap: 6px; margin: 4px 0 6px; }
+  .tcBtns button { height: 26px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.1); color: #fff; font-size: 11.5px; font-weight: 700; }
+  #tcHelp { background: #FFC24A; border-color: #FFC24A; color: #2B2410; font-weight: 800; }
+  .tcMis { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: rgba(255,255,255,.55); padding: 3px 0; }
+  .tcMis i { font-style: normal; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); display: grid; place-items: center; font-size: 10px; }
+  .tcMis.done { color: #7CE8B4; } .tcMis.done i { background: #12876A; border-color: #12876A; color: #fff; }
+  #helpBub { position: absolute; left: 12px; bottom: 270px; max-width: 250px; padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: #FFF6DC; color: #2B2410; font-size: 12.5px; line-height: 1.5; opacity: 0; transform: translateY(6px); transition: .25s; pointer-events: none; z-index: 7; }
+  #helpBub.show { opacity: 1; transform: translateY(0); }
+  #telMoonNote { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(16,18,24,.78); border: 1px solid rgba(255,255,255,.18); font-size: 12.5px; z-index: 5; }
+
   /* 랜드마크 카드 */
   #card { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(60, 30, 45, .25); padding: 20px; }
   #card .inner { width: min(440px, 100%); padding: 26px 28px 22px; animation: pop2 .25s ease-out; }
@@ -180,6 +226,40 @@
 </div>
 
 <div id="joystick" hidden><div id="joystick-knob"></div></div>
+
+<div id="tel" hidden>
+  <canvas id="cvTel"></canvas>
+  <div id="telTop">
+    <span class="ttl">🔭 단대부고 옥상 천문대 · 카세그레인식 반사망원경</span>
+    <span class="sp"></span>
+    <span id="telStat"></span>
+    <button class="telBtn" id="telPrin">원리</button>
+    <button class="telBtn" id="telPlay">조작 모드</button>
+    <button class="telBtn" id="telClose">내려가기 <kbd>Esc</kbd></button>
+  </div>
+  <div id="telMoonNote" hidden>🌙 달은 밤에만 보여요</div>
+  <div id="telEye" hidden><canvas id="telEyeCv"></canvas></div>
+  <div id="telSec"><canvas id="cvSec"></canvas></div>
+  <div id="telSteps">
+    <button class="on"><i>1</i>달을 겨눈다</button>
+    <button><i>2</i>주경에 모인다</button>
+    <button><i>3</i>부경이 되돌린다</button>
+    <button><i>4</i>상이 맺힌다</button>
+    <button id="telNext" class="nx">다음</button>
+  </div>
+  <div id="telCtl">
+    <div class="tcTop">
+      <div class="tcDev"><div class="joy" id="joy"><div class="joyStick" id="joyStick"></div></div><span class="devLab">방향 미동</span><b class="devVal" id="joyVal">·</b></div>
+      <div class="tcDev"><div class="leverSlot" id="lever"><div class="leverTicks"></div><div class="leverHandle" id="leverHandle"></div></div><span class="devLab">부경 레버</span><b class="devVal" id="leverVal">0 mm</b></div>
+      <div class="tcDev"><div class="dial" id="dial"><div class="dialFace" id="dialFace"></div><div class="dialDot"></div></div><span class="devLab">초점 노브</span><b class="devVal" id="dialVal">0 mm</b></div>
+    </div>
+    <div class="tcBtns"><button id="tcNew">새 미션</button><button id="tcHelp">도움!</button></div>
+    <div class="tcMis" id="tcM1"><i>1</i>달을 겨눠라 (오차 0.3° 이내)</div>
+    <div class="tcMis" id="tcM2"><i>2</i>두 초점을 겹쳐라 (부경 1 mm 이내)</div>
+    <div class="tcMis" id="tcM3"><i>3</i>초점 노브로 상을 선명하게</div>
+  </div>
+  <div id="helpBub"></div>
+</div>
 
 <div id="card" hidden>
   <div class="inner panel">

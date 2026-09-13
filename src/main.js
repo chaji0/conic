@@ -5,6 +5,7 @@ import { createBerry } from './cat.js';
 import { buildWorld, project, pointInPoly } from './world.js';
 import { createTerrain } from './terrain.js';
 import { buildCampus } from './campus.js';
+import { createTelescope } from './telescope.js';
 import { createCars, createBikes } from './vehicles.js';
 import { createSky, phaseOf } from './sky.js';
 import { createMultiplayer, ROOM } from './multiplayer.js';
@@ -225,8 +226,9 @@ async function main() {
   const keyHeld = { fwd: false, back: false, left: false, right: false, run: false };
   const keyMap = { ArrowUp: 'fwd', KeyW: 'fwd', ArrowDown: 'back', KeyS: 'back', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ShiftLeft: 'run', ShiftRight: 'run' };
   const clock = new THREE.Clock();
-  let started = false, cardOpen = false, nearest = null, mapShown = true;
-  const uiBlocking = () => cardOpen || !started;
+  let started = false, cardOpen = false, nearest = null, mapShown = true, nearTelescope = false;
+  const telescope = createTelescope({ isNight: () => sky.isNight });
+  const uiBlocking = () => cardOpen || !started || telescope.isOpen;
 
   // e.code 가 비어 오는 환경(일부 가상 키보드·자동화)을 위해 e.key 로 보충
   const codeOf = e => {
@@ -243,8 +245,9 @@ async function main() {
     if (k) { input[k] = keyHeld[k] = true; e.preventDefault(); }
     if (!started) { if ((code === 'Enter' || code === 'NumpadEnter') && !$('#start').hidden) start(); return; }
     if (e.repeat) return;
+    if (telescope.isOpen) { if (code === 'Escape') telescope.close(); return; }
     switch (code) {
-      case 'KeyE': if (cardOpen) closeCard(); else if (nearest) openCard(nearest); break;
+      case 'KeyE': if (cardOpen) closeCard(); else if (nearTelescope) telescope.open(); else if (nearest) openCard(nearest); break;
       case 'Escape': closeCard(); break;
       case 'KeyM': setMapShown(!mapShown); break;
       case 'KeyR': respawn(); break;
@@ -376,9 +379,9 @@ async function main() {
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => clearInterval(timer));
   }
   function onTap() {
-    if (!started) return;
+    if (!started || telescope.isOpen) return;
     if (cardOpen) { closeCard(); return; }
-    if (nearest) openCard(nearest);
+    if (nearTelescope) telescope.open(); else if (nearest) openCard(nearest);
   }
 
   function respawn() {
@@ -441,9 +444,12 @@ async function main() {
       if (d < lm.radius && d < nd) { nd = d; nearest = lm; }
     }
     if (nearest && !found.has(nearest.id)) discover(nearest);
+    const ts = campus.telescopeSpot;
+    nearTelescope = Math.hypot(player.pos.x - ts.x, player.pos.z - ts.z) < 7;
     const prompt = $('#prompt');
-    prompt.hidden = !started || cardOpen || !nearest;
-    if (nearest) prompt.innerHTML = `<kbd>E</kbd> ${KIND[nearest.kind]?.[0] ?? '📍'} ${nearest.name} 둘러보기 (화면을 톡 눌러도 돼요)`;
+    prompt.hidden = !started || cardOpen || telescope.isOpen || !(nearest || nearTelescope);
+    if (nearTelescope) prompt.innerHTML = `<kbd>E</kbd> 🔭 옥상 천문대에 올라가기 (화면을 톡 눌러도 돼요)`;
+    else if (nearest) prompt.innerHTML = `<kbd>E</kbd> ${KIND[nearest.kind]?.[0] ?? '📍'} ${nearest.name} 둘러보기 (화면을 톡 눌러도 돼요)`;
   }
   function discover(lm) {
     found.add(lm.id);
@@ -609,6 +615,7 @@ async function main() {
     world.setNight(night);
     cars.setNight(night);
     campus.setNight(night);
+    if (telescope.isOpen && frame % 30 === 0) telescope.refreshNight();
     updatePlayer(dt);
     berry.object.position.copy(player.pos);
     berry.object.rotation.y = player.yaw;
@@ -628,7 +635,7 @@ async function main() {
     renderer.render(scene, camera);
   });
 
-  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus };   // 디버그·테스트용
+  window.__berry = { player, orbit, world, landmarks, found, cars, input, sky, renderer, scene, camera, clock, setMapShown, terrain, campus, telescope };   // 디버그·테스트용
   setLoad(`건물 ${world.buildingCount.toLocaleString()}채 · 나무 ${world.treeCount.toLocaleString()}그루 · 가로등 ${world.lampCount.toLocaleString()}개 · 담장 ${(world.wallLen / 1000).toFixed(1)}km · 자동차 ${cars.count}대 · 자전거 ${bikes.count}대 · 방 "${ROOM}"`);
   $('#start').hidden = false;
 }
