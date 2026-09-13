@@ -518,7 +518,7 @@ async function main() {
     card.querySelector('.desc').textContent = lm.desc;
     const d0 = Math.hypot(lm.x, lm.z);
     const dir = DIRS[Math.round(((Math.atan2(lm.x, -lm.z) * 180 / Math.PI) + 360) % 360 / 45) % 8];
-    card.querySelector('.meta').textContent = d0 < 50 ? '🐾 베리의 산책 출발점' : `🧭 단대부고에서 ${dir}쪽으로 약 ${Math.round(d0 / 10) * 10}m`;
+    card.querySelector('.meta').textContent = d0 < 50 ? '🧭 탐험 출발점' : `🧭 단대부고에서 ${dir}쪽으로 약 ${Math.round(d0 / 10) * 10}m`;
     card.hidden = false;
     cardOpen = true;
   }

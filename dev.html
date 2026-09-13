@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>베리의 대치동마실</title>
+<title>우리학교 주변 기하 탐험</title>
 <script type="importmap">
 {
   "imports": {
@@ -33,7 +33,8 @@
   #loading .box { max-width: 560px; text-align: center; padding: 34px 40px 28px; }
   #loading .logo { font-size: 62px; line-height: 1; animation: bob 1.3s ease-in-out infinite; }
   #loading h1 { margin: 12px 0 8px; font-size: 34px; letter-spacing: -.03em; color: #a3134f; }
-  #loading .sub { margin: 0 0 16px; color: #6f5160; line-height: 1.7; font-size: 15px; }
+  #loading .sub { margin: 0 0 10px; color: #6f5160; line-height: 1.7; font-size: 15px; }
+  #loading .goal { margin: 0 0 16px; display: inline-block; padding: 6px 16px; border-radius: 999px; background: #c2185b; color: #fff; font-weight: 800; font-size: 14px; }
   #loading .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; text-align: left; margin: 0 auto 18px;
     width: fit-content; font-size: 13.5px; color: #5b4350; }
   #char-row { display: flex; gap: 10px; justify-content: center; margin: 0 0 12px; }
@@ -249,9 +250,9 @@
 <div id="loading">
   <div class="box panel">
     <div class="logo">🐈</div>
-    <h1>베리의 대치동마실</h1>
-    <p class="sub">고양이 <b>베리</b>가 되어 단대부고 앞에서 출발해<br>실제 지도 그대로 만든 대치동·도곡동을 마음껏 산책해요.<br>
-      3분마다 낮과 밤이 바뀌고, 자동차는 구글 스트릿뷰로 갈 수 있는 길로만 다녀요.</p>
+    <h1>우리학교 주변 기하 탐험</h1>
+    <p class="sub">아래 캐릭터 중 하나를 선택하고<br>우리학교 주변에 어떤 기하가 숨어있는지 찾아봅시다.</p>
+    <p class="goal">🎯 목표: 도감 완성하기</p>
     <div class="keys">
       <span><kbd>↑</kbd><kbd>↓</kbd> / <kbd>W</kbd><kbd>S</kbd></span><span>앞으로 · 뒤로</span>
       <span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd></span><span>왼쪽 · 오른쪽으로 돌기</span>
@@ -268,14 +269,14 @@
     </div>
     <div id="name-row"><label for="player-name">내 이름</label><input type="text" id="player-name" maxlength="10" placeholder="이름"></div>
     <p id="load-msg">준비 중…</p>
-    <button id="start" hidden>산책 시작 🐾</button>
+    <button id="start" hidden>탐험 시작 🧭</button>
     <div class="credit">지도 데이터 © OpenStreetMap 기여자 (ODbL) · 같은 방(<code>?room=반이름</code>)에 들어온 친구들이 지도에 함께 보여요</div>
   </div>
 </div>
 
 <div id="hud" hidden>
   <div id="title-card" class="panel">
-    <div class="t">🐈 베리의 대치동마실</div>
+    <div class="t">🧭 우리학교 주변 기하 탐험</div>
     <div id="where">📍 단대부고 근처</div>
     <div id="nearby"></div>
     <div style="margin-top:8px"><button id="dogam-btn">📖 도감 0/2</button><button id="leave-btn">🚪 나가기</button></div>
@@ -364,8 +365,8 @@
   <div class="box panel">
     <div style="font-size:52px">👋</div>
     <h2>수고했어요!</h2>
-    <p>오늘의 산책은 여기까지. 지도에서 내 자리도 지웠어요.</p>
-    <button id="goodbye-again">다시 산책하기</button>
+    <p>오늘의 탐험은 여기까지. 지도에서 내 자리도 지웠어요.</p>
+    <button id="goodbye-again">다시 탐험하기</button>
   </div>
 </div>
 
